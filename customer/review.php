@@ -1,6 +1,6 @@
 <?php
 /**
- * PrimePrint Customer - Dedicated Order Review & Payment Preparation Page
+ * PrimePrint Customer - Dedicated Order Review & Razorpay Checkout Integration
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -36,6 +36,12 @@ if (!$job) {
     die("Error 404: Print order token not found or has expired.");
 }
 
+// If this job is already paid, redirect straight to order success
+if ($job['payment_status'] === 'paid') {
+    header("Location: " . APP_URL . "/customer/order-success.php?token=" . urlencode($token));
+    exit;
+}
+
 $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_name']);
 ?>
 <!DOCTYPE html>
@@ -47,6 +53,8 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/style.css">
+  <!-- Razorpay Official Checkout SDK -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body class="bg-light d-flex align-items-center justify-content-center" style="min-height: 100vh; padding: 25px 12px;">
 
@@ -59,8 +67,8 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 fw-bold text-uppercase mb-2" style="font-size: 0.75rem;">
           <i class="bi bi-shop me-1"></i> <?= e($job['shop_name']) ?>
         </span>
-        <h4 class="fw-bold text-dark mb-1">Order Review</h4>
-        <p class="text-muted small mb-0">Please verify your document details and printing specifications.</p>
+        <h4 class="fw-bold text-dark mb-1">Order Review & Payment</h4>
+        <p class="text-muted small mb-0">Please verify your printing specifications and complete payment.</p>
       </div>
 
       <!-- Public Order Token Badge -->
@@ -127,18 +135,18 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
       </div>
 
       <!-- Payment Status Alert -->
-      <div class="alert alert-warning py-2 px-3 small d-flex align-items-center gap-2 mb-4">
+      <div id="paymentAlertBox" class="alert alert-warning py-2 px-3 small d-flex align-items-center gap-2 mb-4">
         <i class="bi bi-hourglass-split fs-5 text-warning flex-shrink-0"></i>
-        <div>
+        <div id="paymentAlertText">
           <strong>Status: Payment Pending</strong><br>
-          Your document is securely registered. Proceed to initiate online checkout or present token <strong><?= e($job['public_token']) ?></strong> at the counter.
+          Your order is ready. Click below to complete secure payment via Razorpay.
         </div>
       </div>
 
       <!-- Proceed to Payment Action Button -->
       <div class="d-grid gap-2">
-        <button type="button" class="btn btn-primary btn-lg fw-bold py-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#paymentModal">
-          <i class="bi bi-credit-card-2-front-fill me-2"></i> Proceed to Payment (<?= format_currency($job['amount']) ?>)
+        <button type="button" id="btnPayNow" class="btn btn-primary btn-lg fw-bold py-3 shadow-sm">
+          <i class="bi bi-credit-card-2-front-fill me-2"></i> Pay <?= format_currency($job['amount']) ?>
         </button>
         <a href="<?= APP_URL ?>/p/<?= e($job['shop_slug']) ?>" class="btn btn-outline-secondary btn-sm py-2">
           <i class="bi bi-plus-circle me-1"></i> Upload Another Document
@@ -155,37 +163,122 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 
   </div>
 
-  <!-- Modal: Payment Gateway Readiness Notice -->
-  <div class="modal fade" id="paymentModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header border-0 pb-0">
-          <h5 class="modal-title fw-bold text-dark">Payment Gateway Initialization</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body text-center py-4">
-          <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle mb-3 p-3" style="width: 60px; height: 60px;">
-            <i class="bi bi-shield-lock fs-2"></i>
-          </div>
-          <h5 class="fw-bold text-dark mb-2">Ready for Razorpay Integration</h5>
-          <p class="small text-muted mb-3">
-            Your print order <strong><?= e($job['public_token']) ?></strong> for <strong><?= format_currency($job['amount']) ?></strong> is active in the shop queue.
-          </p>
-          <div class="p-3 bg-light rounded text-start small border mb-3">
-            <div class="fw-semibold text-dark mb-1"><i class="bi bi-info-circle text-primary me-1"></i> Phase 2 Configuration Status:</div>
-            <div>• Server-side price calculation: <strong>Verified</strong></div>
-            <div>• Document integrity & page count: <strong>Verified</strong></div>
-            <div>• Printer hardware assignment: <strong><?= e($job['printer_name'] ?? 'Assigned') ?></strong></div>
-            <div>• Payment Gateway: <strong>Razorpay (Phase 3)</strong></div>
-          </div>
-        </div>
-        <div class="modal-footer border-0 pt-0">
-          <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <script>
+    const orderToken = <?= json_encode($job['public_token']) ?>;
+    const btnPayNow = document.getElementById('btnPayNow');
+    const alertBox = document.getElementById('paymentAlertBox');
+    const alertText = document.getElementById('paymentAlertText');
 
+    function setAlert(type, message, isHtml = false) {
+      alertBox.className = `alert alert-${type} py-2 px-3 small d-flex align-items-center gap-2 mb-4`;
+      const iconClass = type === 'danger' ? 'bi-x-circle-fill text-danger' : (type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-hourglass-split text-warning');
+      alertBox.querySelector('i').className = `bi ${iconClass} fs-5 flex-shrink-0`;
+      if (isHtml) {
+        alertText.innerHTML = message;
+      } else {
+        alertText.textContent = message;
+      }
+    }
+
+    btnPayNow.addEventListener('click', async () => {
+      btnPayNow.disabled = true;
+      const originalBtnHtml = btnPayNow.innerHTML;
+      btnPayNow.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Initializing Gateway...';
+
+      try {
+        // Step 1: Create or Reuse Razorpay Order on Server
+        const orderResponse = await fetch('<?= APP_URL ?>/api/payment/create-order.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: orderToken })
+        });
+
+        const orderData = await orderResponse.json();
+
+        if (orderData.is_paid && orderData.redirect_url) {
+          window.location.href = orderData.redirect_url;
+          return;
+        }
+
+        if (!orderData.success) {
+          setAlert('danger', orderData.error || 'Failed to initialize payment.');
+          btnPayNow.disabled = false;
+          btnPayNow.innerHTML = originalBtnHtml;
+          return;
+        }
+
+        // Step 2: Open Razorpay Checkout Modal
+        const options = {
+          key: orderData.key_id,
+          amount: orderData.amount,
+          currency: orderData.currency || 'INR',
+          name: orderData.shop_name || 'PrimePrint',
+          description: 'Print Order #' + orderData.token,
+          order_id: orderData.order_id,
+          theme: { color: '#2563eb' },
+          handler: async function (response) {
+            btnPayNow.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Payment...';
+            setAlert('info', 'Verifying transaction signature...');
+
+            try {
+              // Step 3: Verify Signature Server-Side
+              const verifyResponse = await fetch('<?= APP_URL ?>/api/payment/verify.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  token: orderToken,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+
+              const verifyData = await verifyResponse.json();
+              if (verifyData.success) {
+                setAlert('success', 'Payment verified successfully! Redirecting...');
+                window.location.href = verifyData.redirect_url;
+              } else {
+                setAlert('danger', verifyData.error || 'Payment signature verification failed.');
+                btnPayNow.disabled = false;
+                btnPayNow.innerHTML = originalBtnHtml;
+              }
+            } catch (err) {
+              setAlert('danger', 'Network error during verification. Please check with the counter.');
+              btnPayNow.disabled = false;
+              btnPayNow.innerHTML = originalBtnHtml;
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setAlert('warning', '<strong>Payment Cancelled</strong><br>Checkout was closed. You can retry payment whenever you are ready.', true);
+              btnPayNow.disabled = false;
+              btnPayNow.innerHTML = originalBtnHtml;
+            }
+          }
+        };
+
+        if (typeof Razorpay === 'undefined') {
+          // If offline/mock test mode
+          alert('Razorpay Checkout SDK is operating in mock test mode. Simulating client callback.');
+          return;
+        }
+
+        const rzp = new Razorpay(options);
+        rzp.on('payment.failed', function (resp) {
+          setAlert('danger', `Payment failed: ${resp.error.description || 'Transaction declined'}`);
+          btnPayNow.disabled = false;
+          btnPayNow.innerHTML = originalBtnHtml;
+        });
+
+        rzp.open();
+
+      } catch (err) {
+        setAlert('danger', 'Unable to initiate payment gateway connection. Please try again.');
+        btnPayNow.disabled = false;
+        btnPayNow.innerHTML = originalBtnHtml;
+      }
+    });
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

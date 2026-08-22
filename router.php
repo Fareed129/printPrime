@@ -38,7 +38,21 @@ if (preg_match('#^/api/agent/jobs/(\d+)/status/?$#', $uri, $matches)) {
     return true;
 }
 
-// 5. Support direct extensionless API routing (/api/agent/register -> /api/agent/register.php)
+// 5. Payment & Webhook API routing
+if (preg_match('#^/api/payment/create-order/?$#', $uri)) {
+    require_once __DIR__ . '/api/payment/create-order.php';
+    return true;
+}
+if (preg_match('#^/api/payment/verify/?$#', $uri)) {
+    require_once __DIR__ . '/api/payment/verify.php';
+    return true;
+}
+if (preg_match('#^/api/razorpay/webhook/?$#', $uri)) {
+    require_once __DIR__ . '/api/razorpay/webhook.php';
+    return true;
+}
+
+// 6. Support direct extensionless API routing (/api/agent/register -> /api/agent/register.php)
 if (file_exists(__DIR__ . $uri . '.php')) {
     require_once __DIR__ . $uri . '.php';
     return true;

@@ -64,6 +64,22 @@ try {
         outputMsg("Migrated `print_jobs` table: added unique `public_token` column.");
     }
 
+    $dbPdo->exec("ALTER TABLE `print_jobs` MODIFY COLUMN `payment_status` ENUM('pending', 'paid', 'completed', 'failed') NOT NULL DEFAULT 'pending'");
+
+    // 3c. Migration Check: Ensure payments table has method, failure_reason, captured_at
+    $payColMethod = $dbPdo->query("SHOW COLUMNS FROM `payments` LIKE 'method'")->fetch();
+    if (!$payColMethod) {
+        $dbPdo->exec("ALTER TABLE `payments` ADD COLUMN `method` VARCHAR(50) NULL AFTER `status`");
+    }
+    $payColFail = $dbPdo->query("SHOW COLUMNS FROM `payments` LIKE 'failure_reason'")->fetch();
+    if (!$payColFail) {
+        $dbPdo->exec("ALTER TABLE `payments` ADD COLUMN `failure_reason` TEXT NULL AFTER `method`");
+    }
+    $payColCap = $dbPdo->query("SHOW COLUMNS FROM `payments` LIKE 'captured_at'")->fetch();
+    if (!$payColCap) {
+        $dbPdo->exec("ALTER TABLE `payments` ADD COLUMN `captured_at` DATETIME NULL AFTER `failure_reason`");
+    }
+
     // 4. Seed Super Admin
     $adminPasswordHash = password_hash('ChangeMe123!', PASSWORD_BCRYPT);
     $stmt = $dbPdo->prepare("

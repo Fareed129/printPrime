@@ -18,18 +18,20 @@ if (empty($token) && $jobId <= 0) {
 $db = getDBConnection();
 if (!empty($token)) {
     $stmt = $db->prepare("
-        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone 
+        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone, pr.printer_name 
         FROM print_jobs j 
         INNER JOIN shops s ON j.shop_id = s.id 
+        LEFT JOIN printers pr ON j.printer_id = pr.id 
         WHERE j.public_token = :token 
         LIMIT 1
     ");
     $stmt->execute([':token' => $token]);
 } else {
     $stmt = $db->prepare("
-        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone 
+        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone, pr.printer_name 
         FROM print_jobs j 
         INNER JOIN shops s ON j.shop_id = s.id 
+        LEFT JOIN printers pr ON j.printer_id = pr.id 
         WHERE j.id = :id 
         LIMIT 1
     ");
@@ -38,16 +40,17 @@ if (!empty($token)) {
 $job = $stmt->fetch();
 
 if (!$job) {
-    die("Error: Print job order not found.");
+    http_response_code(404);
+    die("Error 404: Print job order not found.");
 }
 
-// If payment is still pending, route to review page
-if ($job['payment_status'] !== 'completed' && !empty($job['public_token'])) {
+// If payment is still pending, route back to review page
+if (!in_array($job['payment_status'], ['paid', 'completed'], true) && !empty($job['public_token'])) {
     header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($job['public_token']));
     exit;
 }
 
-$pageTitle = 'Order Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
+$pageTitle = 'Payment Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -70,8 +73,8 @@ $pageTitle = 'Order Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
         <i class="bi bi-check-lg"></i>
       </div>
 
-      <h4 class="fw-bold text-dark mb-1">Payment Confirmed & Spooling!</h4>
-      <p class="text-muted small mb-3">Your print request has been paid and sent to <strong><?= e($job['shop_name']) ?></strong></p>
+      <h4 class="fw-bold text-dark mb-1">Payment Successful ✓</h4>
+      <p class="text-muted small mb-3">Your payment was confirmed. Your document has been added to the print queue at <strong><?= e($job['shop_name']) ?></strong>.</p>
 
       <!-- Order ID Badge -->
       <div class="p-3 bg-light rounded-3 border mb-4">
@@ -90,12 +93,22 @@ $pageTitle = 'Order Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
           <span class="fw-semibold text-dark"><?= $job['page_count'] ?> pages × <?= $job['copies'] ?> <?= $job['copies'] > 1 ? 'copies' : 'copy' ?></span>
         </div>
         <div class="list-group-item d-flex justify-content-between px-0 py-2">
+          <span class="text-muted">Target Printer:</span>
+          <span class="fw-semibold text-dark"><?= e($job['printer_name'] ?? 'Counter Spooler') ?></span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between px-0 py-2">
           <span class="text-muted">Format:</span>
           <span class="badge bg-light text-secondary border"><?= e($job['paper_size']) ?> • <?= e($job['color_mode']) ?> • <?= e($job['side_mode']) ?></span>
         </div>
         <div class="list-group-item d-flex justify-content-between px-0 py-2">
-          <span class="text-muted">Queue Status:</span>
-          <span class="badge-status <?= e($job['status']) ?>"><?= e($job['status']) ?></span>
+          <span class="text-muted">Payment:</span>
+          <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Captured</span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between px-0 py-2">
+          <span class="text-muted">Print Status:</span>
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+            <i class="bi bi-clock me-1"></i> Waiting for printer
+          </span>
         </div>
         <div class="list-group-item d-flex justify-content-between px-0 py-2">
           <span class="fw-bold text-dark">Amount Paid:</span>

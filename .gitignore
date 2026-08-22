@@ -20,6 +20,7 @@ uploads/*
 !uploads/index.php
 
 # Environment & OS files
+.env
 .DS_Store
 Thumbs.db
 *.tmp

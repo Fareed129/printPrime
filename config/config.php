@@ -5,20 +5,43 @@
 
 // Application Constants
 define('APP_NAME', 'PrimePrint');
-define('APP_VERSION', '1.0.0-phase1');
+define('APP_VERSION', '1.0.0-phase3');
 
 // Dynamic base URL detection
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
 define('APP_URL', $protocol . $host);
 
+// Load .env configuration if present
+$envFile = __DIR__ . '/../.env';
+if (file_exists($envFile) && is_readable($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if (empty($line) || str_starts_with($line, '#')) continue;
+        if (str_contains($line, '=')) {
+            [$k, $v] = explode('=', $line, 2);
+            $k = trim($k);
+            $v = trim($v);
+            if (!isset($_ENV[$k])) $_ENV[$k] = $v;
+            if (!isset($_SERVER[$k])) $_SERVER[$k] = $v;
+            putenv("{$k}={$v}");
+        }
+    }
+}
+
 // Database Credentials (Protected in config)
-define('DB_HOST', '127.0.0.1');
-define('DB_PORT', '3306');
-define('DB_NAME', 'primeprint_db');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_HOST', $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: '127.0.0.1');
+define('DB_PORT', $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '3306');
+define('DB_NAME', $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'primeprint_db');
+define('DB_USER', $_ENV['DB_USER'] ?? getenv('DB_USER') ?: 'root');
+define('DB_PASS', $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '');
 define('DB_CHARSET', 'utf8mb4');
+
+// Razorpay Test Mode Credentials (Environment Driven)
+define('RAZORPAY_KEY_ID', $_ENV['RAZORPAY_KEY_ID'] ?? getenv('RAZORPAY_KEY_ID') ?: 'rzp_test_sampleKey');
+define('RAZORPAY_KEY_SECRET', $_ENV['RAZORPAY_KEY_SECRET'] ?? getenv('RAZORPAY_KEY_SECRET') ?: 'sampleSecret123456');
+define('RAZORPAY_WEBHOOK_SECRET', $_ENV['RAZORPAY_WEBHOOK_SECRET'] ?? getenv('RAZORPAY_WEBHOOK_SECRET') ?: 'sampleWebhookSecret123456');
 
 // File Upload Settings
 define('UPLOAD_DIR', __DIR__ . '/../uploads/');

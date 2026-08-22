@@ -15,7 +15,7 @@ $shopUser = current_user();
 $shopId = verify_shop_access($shopUser['shop_id']);
 
 $stmt = $db->prepare("
-    SELECT p.*, j.file_name, j.amount AS job_amount 
+    SELECT p.*, j.file_name, j.amount AS job_amount, j.public_token 
     FROM payments p 
     INNER JOIN print_jobs j ON p.job_id = j.id 
     WHERE p.shop_id = :shop_id 
@@ -73,7 +73,11 @@ require_once __DIR__ . '/../includes/header.php';
               <tr>
                 <td><span class="fw-mono fw-bold text-dark">#PAY-<?= $pay['id'] ?></span></td>
                 <td>
-                  <span class="fw-semibold">#<?= $pay['job_id'] ?></span> — <?= e($pay['file_name']) ?>
+                  <span class="fw-bold text-dark">#<?= $pay['job_id'] ?></span>
+                  <?php if (!empty($pay['public_token'])): ?>
+                    <div class="small text-primary font-monospace" style="font-size: 0.72rem;"><?= e($pay['public_token']) ?></div>
+                  <?php endif; ?>
+                  <div class="small text-muted text-truncate" style="max-width: 140px;"><?= e($pay['file_name']) ?></div>
                 </td>
                 <td><code><?= e($pay['razorpay_order_id']) ?></code></td>
                 <td><code><?= e($pay['razorpay_payment_id'] ?? 'N/A') ?></code></td>

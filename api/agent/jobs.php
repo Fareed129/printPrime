@@ -23,6 +23,7 @@ $stmt = $db->prepare("
     FROM print_jobs 
     WHERE shop_id = :shop_id 
       AND status IN ('PAID', 'QUEUED')
+      AND payment_status IN ('paid', 'completed')
     ORDER BY created_at ASC
     LIMIT 20
 ");
