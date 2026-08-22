@@ -115,7 +115,7 @@ try {
 
         if (!$orderRes['success'] || empty($orderRes['order_id'])) {
             http_response_code(502);
-            echo json_encode(['success' => false, 'error' => 'Failed to initialize payment gateway order.']);
+            echo json_encode(['success' => false, 'error' => $orderRes['error'] ?? 'Failed to initialize payment gateway order.']);
             exit;
         }
 

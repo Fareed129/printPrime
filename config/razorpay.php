@@ -42,6 +42,16 @@ function razorpay_create_order(int $amountPaise, string $receipt, array $notes =
     $keyId = RAZORPAY_KEY_ID;
     $keySecret = RAZORPAY_KEY_SECRET;
 
+    if (empty($keyId) || empty($keySecret) || str_contains($keyId, 'sampleKey')) {
+        log_payment_event('razorpay_credentials_missing', [
+            'key_id_set' => !empty($keyId)
+        ], 'ERROR');
+        return [
+            'success' => false,
+            'error'   => 'Razorpay API credentials are not configured or invalid in .env.'
+        ];
+    }
+
     $payload = [
         'amount'   => $amountPaise,
         'currency' => 'INR',
@@ -49,61 +59,54 @@ function razorpay_create_order(int $amountPaise, string $receipt, array $notes =
         'notes'    => $notes
     ];
 
-    // If real/test credentials are configured, execute live HTTP request to Razorpay
-    if (!empty($keyId) && !empty($keySecret) && !str_contains($keyId, 'sampleKey')) {
-        $ch = curl_init('https://api.razorpay.com/v1/orders');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    $ch = curl_init('https://api.razorpay.com/v1/orders');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlErr = curl_error($ch);
-        curl_close($ch);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
 
-        if ($httpCode >= 200 && $httpCode < 300 && !empty($response)) {
-            $resData = json_decode($response, true);
-            if (isset($resData['id'])) {
-                log_payment_event('razorpay_order_created_api', [
-                    'order_id' => $resData['id'],
-                    'amount'   => $amountPaise,
-                    'receipt'  => $receipt
-                ]);
-                return [
-                    'success'  => true,
-                    'order_id' => $resData['id'],
-                    'data'     => $resData
-                ];
-            }
+    if ($httpCode >= 200 && $httpCode < 300 && !empty($response)) {
+        $resData = json_decode($response, true);
+        if (isset($resData['id'])) {
+            log_payment_event('razorpay_order_created_api', [
+                'order_id' => $resData['id'],
+                'amount'   => $amountPaise,
+                'receipt'  => $receipt
+            ]);
+            return [
+                'success'  => true,
+                'order_id' => $resData['id'],
+                'data'     => $resData
+            ];
         }
-
-        log_payment_event('razorpay_api_call_notice', [
-            'http_code' => $httpCode,
-            'error'     => $curlErr,
-            'receipt'   => $receipt
-        ], 'WARNING');
     }
 
-    // Local Test Mock Order generation (Deterministic test mode order for development & automated tests)
-    $mockOrderId = 'order_test_' . substr(bin2hex(random_bytes(8)), 0, 14);
-    log_payment_event('razorpay_order_created_local_mode', [
-        'order_id' => $mockOrderId,
-        'amount'   => $amountPaise,
-        'receipt'  => $receipt
-    ]);
+    $errorMsg = 'Failed to create order on Razorpay.';
+    if (!empty($response)) {
+        $errData = json_decode($response, true);
+        if (isset($errData['error']['description'])) {
+            $errorMsg = $errData['error']['description'];
+        }
+    } elseif (!empty($curlErr)) {
+        $errorMsg = 'Razorpay connection error: ' . $curlErr;
+    }
+
+    log_payment_event('razorpay_order_creation_failed', [
+        'http_code' => $httpCode,
+        'error'     => $errorMsg,
+        'receipt'   => $receipt
+    ], 'ERROR');
 
     return [
-        'success'  => true,
-        'order_id' => $mockOrderId,
-        'data'     => [
-            'id'       => $mockOrderId,
-            'amount'   => $amountPaise,
-            'currency' => 'INR',
-            'receipt'  => $receipt
-        ]
+        'success' => false,
+        'error'   => $errorMsg
     ];
 }
 

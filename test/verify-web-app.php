@@ -235,9 +235,10 @@ $tokenImg = urldecode($m[1] ?? '');
 $revImg = curlReq("{$baseUrl}/customer/review.php?token={$tokenImg}");
 assertTest("9. Image (PNG) page count is strictly 1 page (₹2.00)", $revImg['code'] === 200 && str_contains($revImg['body'], '1 page') && str_contains($revImg['body'], '₹2.00'));
 
-// --------------------------------------------------
-// SECTION 3: Hardened Razorpay Payment State Flow Tests (Tests 1-10)
-// --------------------------------------------------
+// Test Mock Fallback Removal: Verify razorpay_create_order does not generate order_test_* fallback
+$mockCheckRes = razorpay_create_order(1000, 'test_receipt_check', ['check' => '1']);
+$hasNoMockId = empty($mockCheckRes['order_id']) || !str_starts_with($mockCheckRes['order_id'], 'order_test_');
+assertTest("Audit Rule: Mock order fallback completely removed (no order_test_* generated on error)", $hasNoMockId);
 
 // Test 4: Duplicate Checkout clicks / order reuse
 $res1 = curlReq("{$baseUrl}/api/payment/create-order.php", 'POST', json_encode(['token' => $orderTokenMain]), '', ['Content-Type: application/json']);
