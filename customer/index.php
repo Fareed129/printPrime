@@ -203,18 +203,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             $jobId = (int)$db->lastInsertId();
 
-                            // Insert Payment Record
-                            $stmt = $db->prepare("
-                                INSERT INTO payments (job_id, shop_id, razorpay_order_id, amount, status)
-                                VALUES (:job_id, :shop_id, :order_id, :amount, 'created')
-                            ");
-                            $stmt->execute([
-                                ':job_id'   => $jobId,
-                                ':shop_id'  => $shop['id'],
-                                ':order_id' => 'ORD_' . strtoupper(bin2hex(random_bytes(6))),
-                                ':amount'   => $calculatedAmount
-                            ]);
-
                             // Mark form token as consumed to prevent double submissions
                             unset($_SESSION['active_form_tokens'][$formToken]);
                             $_SESSION['submitted_form_tokens'][$formToken] = $publicToken;

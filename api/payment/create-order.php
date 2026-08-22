@@ -104,7 +104,12 @@ try {
     $existingPayment = $stmt->fetch();
 
     $razorpayOrderId = '';
-    if ($existingPayment && (float)$existingPayment['amount'] === $authoritativeAmount && !empty($existingPayment['razorpay_order_id'])) {
+    if (
+        $existingPayment && 
+        (float)$existingPayment['amount'] === $authoritativeAmount && 
+        !empty($existingPayment['razorpay_order_id']) && 
+        str_starts_with($existingPayment['razorpay_order_id'], 'order_')
+    ) {
         $razorpayOrderId = $existingPayment['razorpay_order_id'];
     } else {
         // Create new Razorpay order
