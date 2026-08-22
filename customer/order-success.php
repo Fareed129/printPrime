@@ -44,13 +44,8 @@ if (!$job) {
     die("Error 404: Print job order not found.");
 }
 
-// If payment is still pending, route back to review page
-if (!in_array($job['payment_status'], ['paid', 'completed'], true) && !empty($job['public_token'])) {
-    header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($job['public_token']));
-    exit;
-}
-
-$pageTitle = 'Payment Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
+$isPaid = in_array($job['payment_status'], ['paid', 'completed'], true);
+$pageTitle = 'Payment Status #' . $job['public_token'] . ' — ' . APP_NAME;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -66,15 +61,25 @@ $pageTitle = 'Payment Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
 
   <div class="container" style="max-width: 520px;">
     
-    <div class="card card-pp shadow-sm text-center p-4 mb-3">
+    <div class="card card-pp shadow-sm text-center p-4 mb-3" id="mainStatusCard">
       
-      <!-- Success Icon -->
-      <div class="d-inline-flex align-items-center justify-content-center bg-success text-white rounded-circle mb-3 mx-auto shadow-sm" style="width: 64px; height: 64px; font-size: 2rem;">
-        <i class="bi bi-check-lg"></i>
+      <!-- Status Icon -->
+      <div id="statusIconBox" class="d-inline-flex align-items-center justify-content-center <?= $isPaid ? 'bg-success' : 'bg-primary' ?> text-white rounded-circle mb-3 mx-auto shadow-sm" style="width: 64px; height: 64px; font-size: 2rem;">
+        <?php if ($isPaid): ?>
+          <i class="bi bi-check-lg"></i>
+        <?php else: ?>
+          <div class="spinner-border spinner-border-sm" role="status" style="width: 2rem; height: 2rem;"></div>
+        <?php endif; ?>
       </div>
 
-      <h4 class="fw-bold text-dark mb-1">Payment Successful ✓</h4>
-      <p class="text-muted small mb-3">Your payment was confirmed. Your document has been added to the print queue at <strong><?= e($job['shop_name']) ?></strong>.</p>
+      <h4 class="fw-bold text-dark mb-1" id="statusHeading">
+        <?= $isPaid ? 'Payment Successful ✓' : 'Payment submitted — confirming payment...' ?>
+      </h4>
+      <p class="text-muted small mb-3" id="statusSubheading">
+        <?= $isPaid 
+            ? 'Your payment was confirmed. Your document has been added to the print queue at <strong>' . e($job['shop_name']) . '</strong>.' 
+            : 'Your transaction has been submitted and is currently undergoing gateway settlement confirmation.' ?>
+      </p>
 
       <!-- Order ID Badge -->
       <div class="p-3 bg-light rounded-3 border mb-4">
@@ -102,15 +107,18 @@ $pageTitle = 'Payment Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
         </div>
         <div class="list-group-item d-flex justify-content-between px-0 py-2">
           <span class="text-muted">Payment:</span>
-          <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Captured</span>
-        </div>
-        <div class="list-group-item d-flex justify-content-between px-0 py-2">
-          <span class="text-muted">Print Status:</span>
-          <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
-            <i class="bi bi-clock me-1"></i> Waiting for printer
+          <span id="badgePaymentStatus" class="badge <?= $isPaid ? 'bg-success-subtle text-success border-success-subtle' : 'bg-warning-subtle text-warning border-warning-subtle' ?> border px-2 py-1">
+            <?= $isPaid ? 'Captured' : 'Confirming...' ?>
           </span>
         </div>
         <div class="list-group-item d-flex justify-content-between px-0 py-2">
+          <span class="text-muted">Print Status:</span>
+          <span id="badgePrintStatus" class="badge <?= $isPaid ? 'bg-primary-subtle text-primary border-primary-subtle' : 'bg-secondary-subtle text-secondary border-secondary-subtle' ?> border px-2 py-1">
+            <i class="bi <?= $isPaid ? 'bi-check2-circle' : 'bi-hourglass-split' ?> me-1"></i>
+            <span id="textPrintStatus"><?= $isPaid ? 'Waiting for printer' : 'Awaiting confirmation' ?></span>
+          </span>
+        </div>
+        <div class="list-group-item d-flex justify-content-between px-0 py-3 border-top border-2">
           <span class="fw-bold text-dark">Amount Paid:</span>
           <span class="fw-bold fs-5 text-success"><?= format_currency($job['amount']) ?></span>
         </div>
@@ -130,6 +138,41 @@ $pageTitle = 'Payment Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
     </div>
 
   </div>
+
+  <script>
+    const orderToken = <?= json_encode($job['public_token']) ?>;
+    let isConfirmed = <?= $isPaid ? 'true' : 'false' ?>;
+
+    // Asynchronous status polling for confirming payments
+    if (!isConfirmed) {
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`<?= APP_URL ?>/api/payment/status.php?token=${encodeURIComponent(orderToken)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.is_confirmed) {
+              clearInterval(pollInterval);
+              // Update UI dynamically to confirmed payment state
+              document.getElementById('statusIconBox').className = 'd-inline-flex align-items-center justify-content-center bg-success text-white rounded-circle mb-3 mx-auto shadow-sm';
+              document.getElementById('statusIconBox').innerHTML = '<i class="bi bi-check-lg"></i>';
+              document.getElementById('statusHeading').textContent = 'Payment Successful ✓';
+              document.getElementById('statusSubheading').innerHTML = `Your payment was confirmed. Your document has been added to the print queue at <strong><?= e($job['shop_name']) ?></strong>.`;
+              
+              const payBadge = document.getElementById('badgePaymentStatus');
+              payBadge.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
+              payBadge.textContent = 'Captured';
+
+              const printBadge = document.getElementById('badgePrintStatus');
+              printBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1';
+              printBadge.innerHTML = '<i class="bi bi-clock me-1"></i> Waiting for printer';
+            }
+          }
+        } catch (e) {
+          console.error('Status poll error', e);
+        }
+      }, 2000);
+    }
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

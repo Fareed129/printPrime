@@ -2,7 +2,7 @@
 /**
  * PrimePrint Razorpay Webhook Receiver
  * Endpoint: POST /api/razorpay/webhook.php
- * Handles asynchronous payment reconciliation: payment.captured, order.paid, payment.failed
+ * Handles authoritative asynchronous payment reconciliation: payment.captured, order.paid, payment.failed
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -60,43 +60,40 @@ try {
             $paymentId = $paymentEntity['id'] ?? '';
             $orderId   = $paymentEntity['order_id'] ?? '';
             $amountP   = (int)($paymentEntity['amount'] ?? 0);
+            $currency  = $paymentEntity['currency'] ?? 'INR';
             $method    = $paymentEntity['method'] ?? null;
-            $token     = $paymentEntity['notes']['public_token'] ?? null;
 
-            if (empty($orderId) && empty($token)) {
-                log_payment_event('webhook_captured_missing_order_ref', $paymentEntity, 'WARNING');
+            if (empty($orderId)) {
+                log_payment_event('webhook_captured_missing_order_id', $paymentEntity, 'WARNING');
                 break;
             }
 
-            // Locate Payment & Print Job
-            if (!empty($orderId)) {
-                $stmt = $db->prepare("
-                    SELECT p.*, j.id AS print_job_id, j.amount AS expected_amount, j.payment_status AS job_pay_status, j.status AS job_status, j.public_token 
-                    FROM payments p 
-                    INNER JOIN print_jobs j ON p.job_id = j.id 
-                    WHERE p.razorpay_order_id = :order_id 
-                    LIMIT 1
-                ");
-                $stmt->execute([':order_id' => $orderId]);
-                $record = $stmt->fetch();
-            } else {
-                $stmt = $db->prepare("
-                    SELECT p.*, j.id AS print_job_id, j.amount AS expected_amount, j.payment_status AS job_pay_status, j.status AS job_status, j.public_token 
-                    FROM print_jobs j 
-                    LEFT JOIN payments p ON p.job_id = j.id 
-                    WHERE j.public_token = :token 
-                    ORDER BY p.id DESC LIMIT 1
-                ");
-                $stmt->execute([':token' => $token]);
-                $record = $stmt->fetch();
+            // Currency check
+            if ($currency !== 'INR') {
+                log_payment_event('webhook_captured_currency_mismatch', [
+                    'order_id' => $orderId,
+                    'currency' => $currency
+                ], 'ERROR');
+                break;
             }
+
+            // Strict Location: Match exact payment record and print job by razorpay_order_id
+            $stmt = $db->prepare("
+                SELECT p.*, j.id AS print_job_id, j.shop_id AS job_shop_id, j.amount AS expected_amount, j.payment_status AS job_pay_status, j.status AS job_status, j.public_token 
+                FROM payments p 
+                INNER JOIN print_jobs j ON p.job_id = j.id 
+                WHERE p.razorpay_order_id = :order_id 
+                LIMIT 1
+            ");
+            $stmt->execute([':order_id' => $orderId]);
+            $record = $stmt->fetch();
 
             if (!$record || empty($record['print_job_id'])) {
-                log_payment_event('webhook_captured_job_not_found', ['order_id' => $orderId, 'token' => $token], 'WARNING');
+                log_payment_event('webhook_captured_order_not_found', ['order_id' => $orderId], 'WARNING');
                 break;
             }
 
-            // Amount Integrity Check
+            // Strict Amount Integrity Check (Paise)
             $expectedPaise = (int)round((float)$record['expected_amount'] * 100);
             if ($amountP > 0 && $amountP !== $expectedPaise) {
                 log_payment_event('webhook_amount_mismatch_detected', [
@@ -108,7 +105,7 @@ try {
                 break;
             }
 
-            // Idempotency: If already paid, safely return 200 OK without re-processing
+            // Strict Idempotency: If already confirmed as paid, safely return 200 OK without re-processing
             if ($record['job_pay_status'] === 'paid' && $record['job_status'] === 'QUEUED') {
                 log_payment_event('webhook_captured_already_processed_idempotent', ['job_id' => $record['print_job_id']]);
                 break;
@@ -116,7 +113,7 @@ try {
 
             $db->beginTransaction();
 
-            // Update Payment Record
+            // Update Payment Record to Captured
             $stmt = $db->prepare("
                 UPDATE payments 
                 SET razorpay_payment_id = :payment_id, 
@@ -132,7 +129,7 @@ try {
                 ':id'         => $record['id']
             ]);
 
-            // Transition Job to PAID and QUEUED
+            // Authoritative Transition: Move Print Job to PAID and QUEUED
             $stmt = $db->prepare("
                 UPDATE print_jobs 
                 SET payment_status = 'paid', 
@@ -141,7 +138,7 @@ try {
             ");
             $stmt->execute([':id' => $record['print_job_id']]);
 
-            // Ensure Invoice Exists
+            // Generate Official Invoice Record if not already generated
             $stmt = $db->prepare("SELECT id FROM invoices WHERE job_id = :job_id LIMIT 1");
             $stmt->execute([':job_id' => $record['print_job_id']]);
             if (!$stmt->fetch()) {
@@ -152,7 +149,7 @@ try {
                 ");
                 $stmt->execute([
                     ':job_id'   => $record['print_job_id'],
-                    ':shop_id'  => $record['shop_id'],
+                    ':shop_id'  => $record['job_shop_id'],
                     ':inv_num'  => $invNumber,
                     ':amt'      => $record['expected_amount']
                 ]);
@@ -170,16 +167,29 @@ try {
         case 'order.paid':
             $orderEntity = $eventData['payload']['order']['entity'] ?? [];
             $orderId     = $orderEntity['id'] ?? '';
-            $token       = $orderEntity['notes']['public_token'] ?? null;
 
             if (!empty($orderId)) {
-                $stmt = $db->prepare("SELECT job_id FROM payments WHERE razorpay_order_id = :order_id LIMIT 1");
+                $stmt = $db->prepare("SELECT job_id, shop_id, amount FROM payments WHERE razorpay_order_id = :order_id LIMIT 1");
                 $stmt->execute([':order_id' => $orderId]);
-                $jobId = $stmt->fetchColumn();
-                if ($jobId) {
-                    $stmt = $db->prepare("UPDATE print_jobs SET payment_status = 'paid', status = 'QUEUED' WHERE id = :id AND payment_status != 'paid'");
-                    $stmt->execute([':id' => $jobId]);
-                    log_payment_event('webhook_order_paid_reconciled', ['job_id' => $jobId, 'order_id' => $orderId]);
+                $payRow = $stmt->fetch();
+                if ($payRow) {
+                    $db->beginTransaction();
+                    $stmt = $db->prepare("UPDATE print_jobs SET payment_status = 'paid', status = 'QUEUED' WHERE id = :id");
+                    $stmt->execute([':id' => $payRow['job_id']]);
+
+                    $stmt = $db->prepare("UPDATE payments SET status = 'captured', captured_at = NOW() WHERE razorpay_order_id = :order_id");
+                    $stmt->execute([':order_id' => $orderId]);
+
+                    $stmt = $db->prepare("SELECT id FROM invoices WHERE job_id = :job_id LIMIT 1");
+                    $stmt->execute([':job_id' => $payRow['job_id']]);
+                    if (!$stmt->fetch()) {
+                        $invNumber = 'INV-' . date('Ymd') . '-' . sprintf('%04d', $payRow['job_id']);
+                        $stmt = $db->prepare("INSERT INTO invoices (job_id, shop_id, invoice_number, amount, created_at) VALUES (:job_id, :shop_id, :inv_num, :amt, NOW())");
+                        $stmt->execute([':job_id' => $payRow['job_id'], ':shop_id' => $payRow['shop_id'], ':inv_num' => $invNumber, ':amt' => $payRow['amount']]);
+                    }
+                    $db->commit();
+
+                    log_payment_event('webhook_order_paid_reconciled', ['job_id' => $payRow['job_id'], 'order_id' => $orderId]);
                 }
             }
             break;

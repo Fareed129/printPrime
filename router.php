@@ -47,6 +47,10 @@ if (preg_match('#^/api/payment/verify/?$#', $uri)) {
     require_once __DIR__ . '/api/payment/verify.php';
     return true;
 }
+if (preg_match('#^/api/payment/status/?$#', $uri)) {
+    require_once __DIR__ . '/api/payment/status.php';
+    return true;
+}
 if (preg_match('#^/api/razorpay/webhook/?$#', $uri)) {
     require_once __DIR__ . '/api/razorpay/webhook.php';
     return true;

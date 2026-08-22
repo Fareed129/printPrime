@@ -33,7 +33,7 @@ if (empty($token) || empty($paymentId) || empty($orderId) || empty($signature)) 
     exit;
 }
 
-// Cryptographic Signature Verification
+// 1. Cryptographic Signature Verification
 $isValidSignature = razorpay_verify_payment_signature($orderId, $paymentId, $signature);
 if (!$isValidSignature) {
     log_payment_event('client_payment_signature_failed', [
@@ -50,7 +50,7 @@ if (!$isValidSignature) {
 try {
     $db = getDBConnection();
 
-    // 1. Fetch Print Job
+    // 2. Validate Print Job Exists
     $stmt = $db->prepare("SELECT * FROM print_jobs WHERE public_token = :token LIMIT 1");
     $stmt->execute([':token' => $token]);
     $job = $stmt->fetch();
@@ -61,62 +61,105 @@ try {
         exit;
     }
 
-    $db->beginTransaction();
+    // 3. Strict Payment Record Matching (Must match exact job_id and razorpay_order_id)
+    $stmt = $db->prepare("
+        SELECT id, razorpay_order_id, amount, status 
+        FROM payments 
+        WHERE job_id = :job_id AND razorpay_order_id = :order_id 
+        LIMIT 1
+    ");
+    $stmt->execute([
+        ':job_id'   => $job['id'],
+        ':order_id' => $orderId
+    ]);
+    $paymentRow = $stmt->fetch();
 
-    // 2. Update Payment Record to Captured
+    if (!$paymentRow) {
+        log_payment_event('verify_order_id_mismatch', [
+            'job_id'             => $job['id'],
+            'submitted_order_id' => $orderId
+        ], 'WARNING');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Submitted order ID does not match this print job.']);
+        exit;
+    }
+
+    // 4. Check if already paid
+    if ($job['payment_status'] === 'paid') {
+        echo json_encode([
+            'success'      => true,
+            'is_paid'      => true,
+            'message'      => 'This order has already been paid and queued.',
+            'redirect_url' => APP_URL . '/customer/order-success.php?token=' . urlencode($token)
+        ]);
+        exit;
+    }
+
+    // 5. Store Payment ID against matching payment record
     $stmt = $db->prepare("
         UPDATE payments 
         SET razorpay_payment_id = :payment_id, 
-            status = 'captured', 
-            captured_at = NOW(),
             updated_at = NOW() 
-        WHERE job_id = :job_id AND (razorpay_order_id = :order_id OR status = 'created')
+        WHERE id = :payment_id_row
     ");
     $stmt->execute([
-        ':payment_id' => $paymentId,
-        ':job_id'     => $job['id'],
-        ':order_id'   => $orderId
+        ':payment_id'     => $paymentId,
+        ':payment_id_row' => $paymentRow['id']
     ]);
 
-    // 3. Securely Transition Print Job to PAID and QUEUED
-    $stmt = $db->prepare("
-        UPDATE print_jobs 
-        SET payment_status = 'paid', 
-            status = 'QUEUED' 
-        WHERE id = :id
-    ");
-    $stmt->execute([':id' => $job['id']]);
+    // 6. Optional Direct API Verification (If Live Razorpay API confirms capture)
+    $isCapturedOnApi = false;
+    $apiPayment = razorpay_fetch_payment($paymentId);
+    if ($apiPayment && is_array($apiPayment)) {
+        $expectedPaise = (int)round((float)$job['amount'] * 100);
+        if (
+            ($apiPayment['status'] ?? '') === 'captured' && 
+            (int)($apiPayment['amount'] ?? 0) === $expectedPaise && 
+            ($apiPayment['currency'] ?? '') === 'INR' &&
+            ($apiPayment['order_id'] ?? '') === $orderId
+        ) {
+            $isCapturedOnApi = true;
+        }
+    }
 
-    // 4. Generate Invoice Record if not exists
-    $stmt = $db->prepare("SELECT id FROM invoices WHERE job_id = :job_id LIMIT 1");
-    $stmt->execute([':job_id' => $job['id']]);
-    if (!$stmt->fetch()) {
-        $invNumber = 'INV-' . date('Ymd') . '-' . sprintf('%04d', $job['id']);
-        $stmt = $db->prepare("
-            INSERT INTO invoices (job_id, shop_id, invoice_number, amount, created_at)
-            VALUES (:job_id, :shop_id, :inv_num, :amt, NOW())
-        ");
-        $stmt->execute([
-            ':job_id'   => $job['id'],
-            ':shop_id'  => $job['shop_id'],
-            ':inv_num'  => $invNumber,
-            ':amt'      => $job['amount']
+    if ($isCapturedOnApi) {
+        $db->beginTransaction();
+        $stmt = $db->prepare("UPDATE payments SET status = 'captured', captured_at = NOW(), updated_at = NOW() WHERE id = :id");
+        $stmt->execute([':id' => $paymentRow['id']]);
+
+        $stmt = $db->prepare("UPDATE print_jobs SET payment_status = 'paid', status = 'QUEUED' WHERE id = :id");
+        $stmt->execute([':id' => $job['id']]);
+
+        // Invoice creation
+        $stmt = $db->prepare("SELECT id FROM invoices WHERE job_id = :job_id LIMIT 1");
+        $stmt->execute([':job_id' => $job['id']]);
+        if (!$stmt->fetch()) {
+            $invNumber = 'INV-' . date('Ymd') . '-' . sprintf('%04d', $job['id']);
+            $stmt = $db->prepare("INSERT INTO invoices (job_id, shop_id, invoice_number, amount, created_at) VALUES (:job_id, :shop_id, :inv_num, :amt, NOW())");
+            $stmt->execute([':job_id' => $job['id'], ':shop_id' => $job['shop_id'], ':inv_num' => $invNumber, ':amt' => $job['amount']]);
+        }
+        $db->commit();
+
+        log_payment_event('client_payment_api_confirmed_captured', [
+            'job_id'       => $job['id'],
+            'public_token' => $token,
+            'order_id'     => $orderId,
+            'payment_id'   => $paymentId
+        ]);
+    } else {
+        // Unconfirmed client callback stage: Job remains PAYMENT_PENDING until Webhook confirmation
+        log_payment_event('client_payment_signature_recorded_pending_webhook', [
+            'job_id'       => $job['id'],
+            'public_token' => $token,
+            'order_id'     => $orderId,
+            'payment_id'   => $paymentId
         ]);
     }
 
-    $db->commit();
-
-    log_payment_event('client_payment_verified_and_queued', [
-        'job_id'       => $job['id'],
-        'public_token' => $token,
-        'order_id'     => $orderId,
-        'payment_id'   => $paymentId,
-        'amount'       => $job['amount']
-    ]);
-
     echo json_encode([
         'success'      => true,
-        'message'      => 'Payment verified and print job queued successfully.',
+        'status'       => $isCapturedOnApi ? 'captured' : 'verifying',
+        'message'      => 'Payment signature verified. Confirming settlement...',
         'redirect_url' => APP_URL . '/customer/order-success.php?token=' . urlencode($token)
     ]);
 
@@ -126,5 +169,5 @@ try {
     }
     log_payment_event('payment_verification_exception', ['error' => $e->getMessage()], 'ERROR');
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database error while finalizing payment verification.']);
+    echo json_encode(['success' => false, 'error' => 'Database error while recording payment verification.']);
 }

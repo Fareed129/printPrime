@@ -108,6 +108,33 @@ function razorpay_create_order(int $amountPaise, string $receipt, array $notes =
 }
 
 /**
+ * Fetch Payment details from Razorpay API
+ */
+function razorpay_fetch_payment(string $paymentId): array|false {
+    $keyId = RAZORPAY_KEY_ID;
+    $keySecret = RAZORPAY_KEY_SECRET;
+
+    if (empty($paymentId) || empty($keyId) || empty($keySecret) || str_contains($keyId, 'sampleKey')) {
+        return false;
+    }
+
+    $ch = curl_init("https://api.razorpay.com/v1/payments/" . urlencode($paymentId));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERPWD, "{$keyId}:{$keySecret}");
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode >= 200 && $httpCode < 300 && !empty($response)) {
+        return json_decode($response, true) ?: false;
+    }
+
+    return false;
+}
+
+/**
  * Verify Razorpay Checkout Payment Signature
  * Algorithm: HMAC-SHA256(order_id + "|" + payment_id, key_secret) == signature
  */
