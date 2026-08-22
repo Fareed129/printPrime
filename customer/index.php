@@ -46,9 +46,37 @@ $hasOnlinePrinter = count($onlinePrinters) > 0;
 
 $errors = [];
 
+// Initialize session form token storage for duplicate submission protection
+if (!isset($_SESSION['active_form_tokens'])) {
+    $_SESSION['active_form_tokens'] = [];
+}
+if (!isset($_SESSION['submitted_form_tokens'])) {
+    $_SESSION['submitted_form_tokens'] = [];
+}
+
+// Clean up expired form tokens older than 2 hours
+$twoHoursAgo = time() - 7200;
+foreach ($_SESSION['active_form_tokens'] as $tok => $ts) {
+    if ($ts < $twoHoursAgo) unset($_SESSION['active_form_tokens'][$tok]);
+}
+
 // Handle Customer Order Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
+
+    $formToken = trim($_POST['form_token'] ?? '');
+
+    // Check duplicate submission
+    if (!empty($formToken) && isset($_SESSION['submitted_form_tokens'][$formToken])) {
+        // Already processed -> redirect directly to the existing order review
+        $existingToken = $_SESSION['submitted_form_tokens'][$formToken];
+        header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($existingToken));
+        exit;
+    }
+
+    if (empty($formToken) || !isset($_SESSION['active_form_tokens'][$formToken])) {
+        $errors[] = 'Form session has expired or was already submitted. Please refresh and try again.';
+    }
 
     $paperSize = trim($_POST['paper_size'] ?? '');
     $colorMode = trim($_POST['color_mode'] ?? '');
@@ -56,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $copies    = (int)($_POST['copies'] ?? 1);
     $printerId = (int)($_POST['printer_id'] ?? 0);
 
-    // Validate Copies
+    // Validate Copies (Min: 1, Max: 100)
     if ($copies < 1 || $copies > 100) {
         $errors[] = 'Copies must be a valid number between 1 and 100.';
     }
@@ -78,15 +106,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Validate Document Upload
     if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
-        $errors[] = 'Please choose a document to upload.';
+        $errors[] = 'Please choose a valid document to upload.';
     } else {
         $file = $_FILES['document'];
         $originalName = basename($file['name']);
-        $fileSize = $file['size'];
+        $fileSize = (int)$file['size'];
         $tmpPath = $file['tmp_name'];
 
-        if ($fileSize > MAX_FILE_SIZE_BYTES) {
-            $errors[] = 'File size exceeds the 25 MB limit.';
+        if ($fileSize <= 0) {
+            $errors[] = 'Uploaded file is empty.';
+        } elseif ($fileSize > MAX_FILE_SIZE_BYTES) {
+            $errors[] = 'File size exceeds the maximum limit of 25 MB.';
         }
 
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
@@ -124,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $serverPageCount = $detectedPages;
                     }
                 } else {
-                    // Images count as 1 page
+                    // Images strictly count as 1 page
                     $serverPageCount = 1;
                 }
 
@@ -185,12 +215,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 ':amount'   => $calculatedAmount
                             ]);
 
+                            // Mark form token as consumed to prevent double submissions
+                            unset($_SESSION['active_form_tokens'][$formToken]);
+                            $_SESSION['submitted_form_tokens'][$formToken] = $publicToken;
+
                             // Redirect to dedicated Review Page using public order token
                             header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($publicToken));
                             exit;
 
                         } catch (Exception $e) {
                             @unlink($destination);
+                            error_log("Order creation error: " . $e->getMessage());
                             $errors[] = 'Unable to create print order. Please try again.';
                         }
                     }
@@ -199,6 +234,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Generate fresh form token for this page render
+$currentFormToken = bin2hex(random_bytes(16));
+$_SESSION['active_form_tokens'][$currentFormToken] = time();
 
 $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 ?>
@@ -264,6 +303,7 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 
         <form method="POST" action="<?= APP_URL ?>/p/<?= e($shop['slug']) ?>" enctype="multipart/form-data" id="customerPrintForm">
           <?= csrf_field() ?>
+          <input type="hidden" name="form_token" value="<?= e($currentFormToken) ?>">
 
           <!-- STEP 1: Upload Document -->
           <div class="mb-4">

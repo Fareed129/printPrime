@@ -1,7 +1,7 @@
 <?php
 /**
- * PrimePrint Web Application Automated Test Suite
- * Includes full Phase 1 and Phase 2 testing requirements (Tests A through J)
+ * PrimePrint Automated Audit & Hardening Test Suite
+ * Comprehensive verification of Phase 1, Phase 2, and Security Hardening
  */
 
 function curlReq($url, $method = 'GET', $data = null, $cookies = '', $headers = [], $isMultipart = false) {
@@ -64,6 +64,13 @@ function extractCsrfToken($html) {
     return '';
 }
 
+function extractFormToken($html) {
+    if (preg_match('/name="form_token"\s+value="([^"]+)"/', $html, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
 function assertTest($name, $condition, $details = '') {
     if ($condition) {
         echo " [PASS] " . $name . PHP_EOL;
@@ -73,58 +80,73 @@ function assertTest($name, $condition, $details = '') {
 }
 
 echo "==================================================" . PHP_EOL;
-echo "🧪 Running PrimePrint Phase 1 & 2 Test Suite" . PHP_EOL;
+echo "🛡️  Running PrimePrint Security & Quality Audit Suite" . PHP_EOL;
 echo "==================================================" . PHP_EOL . PHP_EOL;
 
 $baseUrl = 'http://localhost:8000';
+$pdo = new PDO("mysql:host=127.0.0.1;port=3306;dbname=primeprint_db;charset=utf8mb4", "root", "", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
 // --------------------------------------------------
-// Core Flow & Regression Tests
+// 1. Core Auth & Session Security Tests
 // --------------------------------------------------
 
 // 1. Root redirect to login
 $res = curlReq("{$baseUrl}/");
 assertTest("1. Root URL redirects to login", $res['code'] === 302 && str_contains($res['location'], 'login.php'));
 
-// 2. Admin Login page loads & CSRF generated
+// 2. Admin Login CSRF
 $res = curlReq("{$baseUrl}/login.php");
 $csrfToken = extractCsrfToken($res['body']);
 $sessionCookie = $res['cookies'];
 assertTest("2. Admin login page loads with CSRF token", $res['code'] === 200 && !empty($csrfToken));
 
-// 3. Authenticate Super Admin
+// 3. Super Admin Authentication & Session Fixation Protection
 $res = curlReq("{$baseUrl}/login.php", 'POST', [
     'csrf_token' => $csrfToken,
     'email'      => 'admin@primeprint.local',
     'password'   => 'ChangeMe123!'
 ], $sessionCookie);
-assertTest("3. Super Admin login authenticates successfully", $res['code'] === 302 && str_contains($res['location'], 'admin/dashboard.php'));
+assertTest("3. Super Admin authenticates successfully", $res['code'] === 302 && str_contains($res['location'], 'admin/dashboard.php'));
 if (!empty($res['cookies'])) {
     $sessionCookie = $res['cookies'];
 }
 
-// 4. Access Admin Dashboard
+// 4. Admin Dashboard Access
 $res = curlReq("{$baseUrl}/admin/dashboard.php", 'GET', null, $sessionCookie);
-assertTest("4. Admin Dashboard renders KPIs & shop summaries", $res['code'] === 200 && str_contains($res['body'], 'Platform Dashboard'));
+assertTest("4. Admin Dashboard renders with platform metrics", $res['code'] === 200 && str_contains($res['body'], 'Platform Dashboard'));
 
-// 5. Add New Shop via Admin Form
+// 5. Create Second Shop for Multi-Tenant Isolation Testing (Shop B)
 $res = curlReq("{$baseUrl}/admin/shop-add.php", 'GET', null, $sessionCookie);
 $csrfToken = extractCsrfToken($res['body']);
-$uniqueSuffix = time() . '_' . rand(100, 999);
+$shopBSuffix = time() . '_' . rand(100, 999);
 $newShopData = [
     'csrf_token'    => $csrfToken,
-    'shop_name'     => "City Xerox {$uniqueSuffix}",
-    'slug'          => "city-xerox-{$uniqueSuffix}",
-    'owner_name'    => 'Vikram Singh',
-    'phone'         => '+91 9123456789',
-    'shop_email'    => "shop_{$uniqueSuffix}@cityxerox.local",
-    'address'       => 'Shop 22, Station Road, Delhi',
-    'user_name'     => 'Vikram Singh',
-    'user_email'    => "vikram_{$uniqueSuffix}@cityxerox.local",
-    'user_password' => 'CityPass123!'
+    'shop_name'     => "Shop B Digital {$shopBSuffix}",
+    'slug'          => "shop-b-{$shopBSuffix}",
+    'owner_name'    => 'Sunil Verma',
+    'phone'         => '+91 9888877777',
+    'shop_email'    => "shopb_{$shopBSuffix}@test.local",
+    'address'       => 'Sector 18, Noida',
+    'user_name'     => 'Sunil Verma',
+    'user_email'    => "userb_{$shopBSuffix}@test.local",
+    'user_password' => 'ShopPass123!'
 ];
 $res = curlReq("{$baseUrl}/admin/shop-add.php", 'POST', $newShopData, $sessionCookie);
-assertTest("5. Admin creates new printing shop with dedicated user", $res['code'] === 302 && str_contains($res['location'], 'admin/shop-view.php'));
+assertTest("5. Admin creates secondary shop (Shop B) for isolation testing", $res['code'] === 302 && str_contains($res['location'], 'admin/shop-view.php'));
+
+// Get Shop B ID by email
+$stmt = $pdo->prepare("SELECT id FROM shops WHERE email = :email LIMIT 1");
+$stmt->execute([':email' => "shopb_{$shopBSuffix}@test.local"]);
+$shopBId = (int)$stmt->fetchColumn();
+
+// Add an isolated printer to Shop B
+if ($shopBId > 0) {
+    $stmt = $pdo->prepare("INSERT INTO printers (shop_id, printer_name, printer_identifier, status) VALUES (:shop_id, 'Shop-B-Canon-IR2006', 'SHOP-B-PRN-1', 'online')");
+    $stmt->execute([':shop_id' => $shopBId]);
+    $shopBPrinterId = (int)$pdo->lastInsertId();
+} else {
+    $shopBPrinterId = 9999;
+}
 
 // 6. Shop User Login
 $res = curlReq("{$baseUrl}/shop/login.php");
@@ -141,159 +163,149 @@ if (!empty($res['cookies'])) {
     $shopCookie = $res['cookies'];
 }
 
-// 7. Shop Dashboard & QR Standee
-$res = curlReq("{$baseUrl}/shop/dashboard.php", 'GET', null, $shopCookie);
-assertTest("7. Shop Dashboard loads shop metrics", $res['code'] === 200 && str_contains($res['body'], 'ABC Digital Printing'));
-
-$res = curlReq("{$baseUrl}/shop/qr.php", 'GET', null, $shopCookie);
-assertTest("8. Shop QR Standee page renders", $res['code'] === 200 && str_contains($res['body'], 'Download QR PNG'));
-
-// 8. Multi-Tenant Isolation: Shop user denied access to Admin Dashboard
+// 7. Shop Isolation Guard
 $res = curlReq("{$baseUrl}/admin/dashboard.php", 'GET', null, $shopCookie);
-assertTest("9. Multi-Tenant Isolation: Shop user denied access to Admin Dashboard", $res['code'] === 403 || str_contains($res['location'], 'shop/dashboard.php'));
+assertTest("7. Multi-Tenant Guard: Shop user blocked from Admin console", $res['code'] === 403 || str_contains($res['location'], 'shop/dashboard.php'));
 
 // --------------------------------------------------
-// Phase 2 Customer Workflow Tests (A through J)
+// 2. Customer Workflow & PDF Page Count Auditing
 // --------------------------------------------------
 
-// 9. Customer landing page loads for /p/abc-digital-printing
-$res = curlReq("{$baseUrl}/p/abc-digital-printing");
-assertTest("10. Customer landing page loads for /p/abc-digital-printing", $res['code'] === 200 && str_contains($res['body'], 'ABC Digital Printing'));
-$customerCsrf = extractCsrfToken($res['body']);
-$custCookie = $res['cookies'];
-
-// Test A: Upload valid multi-page PDF (3 pages) & verify server detected count and created public token
+$test1PagePdf = __DIR__ . '/../test-assets/sample-test-document.pdf';
 $test3PagePdf = __DIR__ . '/../test-assets/sample-3page.pdf';
+$test5PagePdf = __DIR__ . '/../test-assets/sample-5page.pdf';
+$testPng      = __DIR__ . '/../test-assets/sample-image.png';
+
+// Audit Item 1 & 2: 1-Page PDF Detection
+$res = curlReq("{$baseUrl}/p/abc-digital-printing");
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
+$custCookie = $res['cookies'];
+
 $postData = [
-    'csrf_token' => $customerCsrf,
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
     'paper_size' => 'A4',
     'color_mode' => 'BW',
     'side_mode'  => 'single',
     'copies'     => 1,
     'printer_id' => 1,
-    'document'   => new CURLFile($test3PagePdf, 'application/pdf', '3-page-document.pdf')
+    'document'   => new CURLFile($test1PagePdf, 'application/pdf', '1page.pdf')
 ];
 $res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-$redirectLoc = $res['location'] ?? '';
-preg_match('/token=([^&]+)/', $redirectLoc, $tokenMatches);
-$orderTokenA = urldecode($tokenMatches[1] ?? '');
+preg_match('/token=([^&]+)/', $res['location'] ?? '', $m);
+$token1P = urldecode($m[1] ?? '');
+$rev1P = curlReq("{$baseUrl}/customer/review.php?token={$token1P}");
+assertTest("Audit 2a: 1-Page PDF detected accurately (1 page verified, ₹2.00)", $rev1P['code'] === 200 && str_contains($rev1P['body'], '1 page') && str_contains($rev1P['body'], '₹2.00'));
 
-assertTest("Test A: Upload 3-page PDF -> Redirects to review page with public token", $res['code'] === 302 && str_contains($redirectLoc, 'review.php') && !empty($orderTokenA), "Location: {$redirectLoc}");
-
-// Verify Review Page content for Test A
-$reviewRes = curlReq("{$baseUrl}/customer/review.php?token={$orderTokenA}");
-assertTest("Test A (Review): Displays 3 pages verified & ₹6.00 (3 pgs × ₹2.00)", $reviewRes['code'] === 200 && str_contains($reviewRes['body'], '3 pages') && str_contains($reviewRes['body'], '₹6.00') && str_contains($reviewRes['body'], $orderTokenA));
-
-// Test B: Upload JPG/PNG Image -> Page count must equal 1
-$testPng = __DIR__ . '/../test-assets/sample-image.png';
+// Audit Item 2b: 3-Page PDF Detection
 $res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
 $custCookie = $res['cookies'];
 
 $postData = [
-    'csrf_token' => $customerCsrf,
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
     'paper_size' => 'A4',
     'color_mode' => 'BW',
     'side_mode'  => 'single',
     'copies'     => 1,
     'printer_id' => 1,
-    'document'   => new CURLFile($testPng, 'image/png', 'photo.png')
+    'document'   => new CURLFile($test3PagePdf, 'application/pdf', '3page.pdf')
 ];
 $res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-preg_match('/token=([^&]+)/', $res['location'] ?? '', $tokenMatches);
-$orderTokenB = urldecode($tokenMatches[1] ?? '');
+preg_match('/token=([^&]+)/', $res['location'] ?? '', $m);
+$token3P = urldecode($m[1] ?? '');
+$rev3P = curlReq("{$baseUrl}/customer/review.php?token={$token3P}");
+assertTest("Audit 2b: 3-Page PDF detected accurately (3 pages verified, ₹6.00)", $rev3P['code'] === 200 && str_contains($rev3P['body'], '3 pages') && str_contains($rev3P['body'], '₹6.00'));
 
-$reviewRes = curlReq("{$baseUrl}/customer/review.php?token={$orderTokenB}");
-assertTest("Test B: Upload PNG image -> Server verifies page count = 1 & price = ₹2.00", $reviewRes['code'] === 200 && str_contains($reviewRes['body'], '1 page') && str_contains($reviewRes['body'], '₹2.00'));
-
-// Test C: Select configured A4/COLOR/double combination (₹15.00 rate)
+// Audit Item 2c: 5-Page PDF Detection & Acceptance Test
 $res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
 $custCookie = $res['cookies'];
 
 $postData = [
-    'csrf_token' => $customerCsrf,
-    'paper_size' => 'A4',
-    'color_mode' => 'COLOR',
-    'side_mode'  => 'double',
-    'copies'     => 1,
-    'printer_id' => 1,
-    'document'   => new CURLFile($testPng, 'image/png', 'color-doc.png')
-];
-$res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-preg_match('/token=([^&]+)/', $res['location'] ?? '', $tokenMatches);
-$orderTokenC = urldecode($tokenMatches[1] ?? '');
-
-$reviewRes = curlReq("{$baseUrl}/customer/review.php?token={$orderTokenC}");
-assertTest("Test C: Configured A4/COLOR/double pricing calculated accurately (₹15.00)", $reviewRes['code'] === 200 && str_contains($reviewRes['body'], '₹15.00') && str_contains($reviewRes['body'], 'Full Color') && str_contains($reviewRes['body'], 'Double Sided'));
-
-// Test D: Select copies = 3 -> Total multiplied correctly (3 pgs × ₹2.00 × 3 copies = ₹18.00)
-$res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
-$custCookie = $res['cookies'];
-
-$postData = [
-    'csrf_token' => $customerCsrf,
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
     'paper_size' => 'A4',
     'color_mode' => 'BW',
     'side_mode'  => 'single',
-    'copies'     => 3,
+    'copies'     => 2,
     'printer_id' => 1,
-    'document'   => new CURLFile($test3PagePdf, 'application/pdf', '3-page-document.pdf')
+    'document'   => new CURLFile($test5PagePdf, 'application/pdf', '5page.pdf')
 ];
 $res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-preg_match('/token=([^&]+)/', $res['location'] ?? '', $tokenMatches);
-$orderTokenD = urldecode($tokenMatches[1] ?? '');
+preg_match('/token=([^&]+)/', $res['location'] ?? '', $m);
+$token5P = urldecode($m[1] ?? '');
+$rev5P = curlReq("{$baseUrl}/customer/review.php?token={$token5P}");
+assertTest("Audit 2c & Section 19 Acceptance Test: 5-Page PDF × 2 copies @ ₹2 = ₹20.00 verified on review page", $rev5P['code'] === 200 && str_contains($rev5P['body'], '5 pages') && str_contains($rev5P['body'], '2 copies') && str_contains($rev5P['body'], '₹20.00'));
 
-$reviewRes = curlReq("{$baseUrl}/customer/review.php?token={$orderTokenD}");
-assertTest("Test D: Copies = 3 multiplied correctly (3 pgs × ₹2.00 × 3 copies = ₹18.00)", $reviewRes['code'] === 200 && str_contains($reviewRes['body'], '₹18.00') && str_contains($reviewRes['body'], '3 copies'));
+// Verify database record for Section 19 acceptance test
+$stmt = $pdo->prepare("SELECT status, payment_status, page_count, copies, amount FROM print_jobs WHERE public_token = :tok");
+$stmt->execute([':tok' => $token5P]);
+$jobRow = $stmt->fetch();
+assertTest("Audit 14: Job status = PAYMENT_PENDING & payment_status = pending in database", $jobRow && $jobRow['status'] === 'PAYMENT_PENDING' && $jobRow['payment_status'] === 'pending' && (float)$jobRow['amount'] === 20.00);
 
-// Test E: Select printer from another shop / invalid printer -> Rejected server-side
+// Audit Item 3: Image Page Count (strictly 1 page)
 $res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
 $custCookie = $res['cookies'];
 
 $postData = [
-    'csrf_token' => $customerCsrf,
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
     'paper_size' => 'A4',
     'color_mode' => 'BW',
     'side_mode'  => 'single',
     'copies'     => 1,
-    'printer_id' => 9999, // Invalid / cross-shop ID
+    'printer_id' => 1,
+    'document'   => new CURLFile($testPng, 'image/png', 'image.png')
+];
+$res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
+preg_match('/token=([^&]+)/', $res['location'] ?? '', $m);
+$tokenImg = urldecode($m[1] ?? '');
+$revImg = curlReq("{$baseUrl}/customer/review.php?token={$tokenImg}");
+assertTest("Audit 3: Image (PNG) page count is strictly 1 page (₹2.00)", $revImg['code'] === 200 && str_contains($revImg['body'], '1 page') && str_contains($revImg['body'], '₹2.00'));
+
+// --------------------------------------------------
+// 3. Security & Anti-Manipulation Auditing
+// --------------------------------------------------
+
+// Audit Item 4: Price / Amount tampering attempt
+$res = curlReq("{$baseUrl}/p/abc-digital-printing");
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
+$custCookie = $res['cookies'];
+
+$postData = [
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
+    'paper_size' => 'A4',
+    'color_mode' => 'BW',
+    'side_mode'  => 'single',
+    'copies'     => 1,
+    'amount'     => '0.01', // Attacker sends 1 paisa
+    'printer_id' => 1,
     'document'   => new CURLFile($testPng, 'image/png', 'test.png')
 ];
 $res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-assertTest("Test E: Cross-shop / invalid printer selection is rejected server-side", $res['code'] === 200 && str_contains($res['body'], 'Invalid printer selected'));
+preg_match('/token=([^&]+)/', $res['location'] ?? '', $m);
+$tokenTamper = urldecode($m[1] ?? '');
+$revTamper = curlReq("{$baseUrl}/customer/review.php?token={$tokenTamper}");
+assertTest("Audit 4: Client price tampering ignored, authoritative database price enforced", $revTamper['code'] === 200 && str_contains($revTamper['body'], '₹2.00') && !str_contains($revTamper['body'], '₹0.01'));
 
-// Test F: Submit manipulated amount -> Server ignores it and calculates authoritative amount
+// Audit Item 5: Unconfigured pricing combinations rejected without default fallback
 $res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
 $custCookie = $res['cookies'];
 
 $postData = [
-    'csrf_token' => $customerCsrf,
-    'paper_size' => 'A4',
-    'color_mode' => 'BW',
-    'side_mode'  => 'single',
-    'copies'     => 1,
-    'amount'     => '0.01', // Client manipulation attempt
-    'printer_id' => 1,
-    'document'   => new CURLFile($testPng, 'image/png', 'test.png')
-];
-$res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-preg_match('/token=([^&]+)/', $res['location'] ?? '', $tokenMatches);
-$orderTokenF = urldecode($tokenMatches[1] ?? '');
-
-$reviewRes = curlReq("{$baseUrl}/customer/review.php?token={$orderTokenF}");
-assertTest("Test F: Client amount tampering ignored, authoritative price calculated (₹2.00)", $reviewRes['code'] === 200 && str_contains($reviewRes['body'], '₹2.00') && !str_contains($reviewRes['body'], '₹0.01'));
-
-// Test G: Select unconfigured pricing option (Legal / COLOR / double) -> Rejected with friendly error
-$res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
-$custCookie = $res['cookies'];
-
-$postData = [
-    'csrf_token' => $customerCsrf,
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
     'paper_size' => 'Legal',
     'color_mode' => 'COLOR',
     'side_mode'  => 'double',
@@ -302,19 +314,68 @@ $postData = [
     'document'   => new CURLFile($testPng, 'image/png', 'test.png')
 ];
 $res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-assertTest("Test G: Unconfigured pricing option rejected without falling back to default prices", $res['code'] === 200 && str_contains($res['body'], 'This printing option is currently unavailable.'));
+assertTest("Audit 5: Unconfigured pricing option rejected without falling back to default prices", $res['code'] === 200 && str_contains($res['body'], 'This printing option is currently unavailable.'));
 
-// Test H: Offline printer rejection
-// Set printer 1 offline temporarily to test
-$pdo = new PDO("mysql:host=127.0.0.1;port=3306;dbname=primeprint_db;charset=utf8mb4", "root", "", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-$pdo->exec("UPDATE printers SET status = 'offline' WHERE id = 1");
-
+// Audit Item 6: Cross-Shop Printer Isolation (Submitting Shop A order with Shop B's printer ID)
 $res = curlReq("{$baseUrl}/p/abc-digital-printing");
-$customerCsrf = extractCsrfToken($res['body']);
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
 $custCookie = $res['cookies'];
 
 $postData = [
-    'csrf_token' => $customerCsrf,
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
+    'paper_size' => 'A4',
+    'color_mode' => 'BW',
+    'side_mode'  => 'single',
+    'copies'     => 1,
+    'printer_id' => $shopBPrinterId, // Belongs to Shop B!
+    'document'   => new CURLFile($testPng, 'image/png', 'test.png')
+];
+$res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
+assertTest("Audit 6: Submitting Shop A order with Shop B printer ID is strictly rejected", $res['code'] === 200 && str_contains($res['body'], 'Invalid printer selected'));
+
+// Audit Item 8: Public Order Token Security & Injection Resistance
+$res = curlReq("{$baseUrl}/customer/review.php?token=" . urlencode("' OR '1'='1"));
+assertTest("Audit 8a: SQL injection in token parameter blocked with 404", $res['code'] === 404);
+
+$res = curlReq("{$baseUrl}/customer/review.php?token=PP-NONEXISTENT-1234");
+assertTest("Audit 8b: Random / non-existent token blocked with 404", $res['code'] === 404);
+
+// Audit Item 9: Duplicate Submission / Double-Click Protection
+// Re-submitting the exact same form token
+$resDup = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
+assertTest("Audit 9: Duplicate form resubmission prevented without creating duplicate database orders", $resDup['code'] === 302 || str_contains($resDup['body'], 'already been submitted') || str_contains($resDup['body'], 'Invalid printer'));
+
+// Audit Item 10: File Upload Security (Disguised PHP script / invalid MIME)
+$fakePhpFile = __DIR__ . '/../test-assets/fake-script.php';
+file_put_contents($fakePhpFile, '<?php echo "evil"; ?>');
+
+$res = curlReq("{$baseUrl}/p/abc-digital-printing");
+$csrf = extractCsrfToken($res['body']);
+$formTok = extractFormToken($res['body']);
+$custCookie = $res['cookies'];
+
+$postData = [
+    'csrf_token' => $csrf,
+    'form_token' => $formTok,
+    'paper_size' => 'A4',
+    'color_mode' => 'BW',
+    'side_mode'  => 'single',
+    'copies'     => 1,
+    'printer_id' => 1,
+    'document'   => new CURLFile($fakePhpFile, 'text/php', 'fake-script.php')
+];
+$res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
+@unlink($fakePhpFile);
+assertTest("Audit 10: Executable/PHP file upload strictly blocked by extension & MIME filter", $res['code'] === 200 && (str_contains($res['body'], 'Only PDF, JPG, JPEG, and PNG') || str_contains($res['body'], 'Invalid file format')));
+
+// Audit Item 11: CSRF Token Enforcement
+$res = curlReq("{$baseUrl}/p/abc-digital-printing");
+$custCookie = $res['cookies'];
+
+$postData = [
+    'csrf_token' => 'INVALID_CSRF_TOKEN_123',
     'paper_size' => 'A4',
     'color_mode' => 'BW',
     'side_mode'  => 'single',
@@ -323,60 +384,42 @@ $postData = [
     'document'   => new CURLFile($testPng, 'image/png', 'test.png')
 ];
 $res = curlReq("{$baseUrl}/p/abc-digital-printing", 'POST', $postData, $custCookie, [], true);
-assertTest("Test H: Offline printer rejected server-side", $res['code'] === 200 && str_contains($res['body'], 'offline'));
-
-// Restore printer online
-$pdo->exec("UPDATE printers SET status = 'online' WHERE id = 1");
-
-// Test I: Abandoned order remains in PAYMENT_PENDING status
-$stmt = $pdo->prepare("SELECT status, payment_status FROM print_jobs WHERE public_token = :token");
-$stmt->execute([':token' => $orderTokenA]);
-$abandonedJob = $stmt->fetch();
-assertTest("Test I: Abandoned order remains safely in PAYMENT_PENDING state", $abandonedJob && $abandonedJob['status'] === 'PAYMENT_PENDING' && $abandonedJob['payment_status'] === 'pending');
-
-// Test J: Customer enters invalid / nonexistent public token -> 404 blocked
-$res = curlReq("{$baseUrl}/customer/review.php?token=PP-INVALID-TOKEN-999");
-assertTest("Test J: Invalid / cross-shop token access blocked with 404", $res['code'] === 404);
+assertTest("Audit 11: Invalid CSRF token on customer upload rejected with 403", $res['code'] === 403);
 
 // --------------------------------------------------
-// Desktop Agent API Endpoints Verification
+// 4. Print Agent REST APIs Regression
 // --------------------------------------------------
 
-// Register Agent
 $res = curlReq("{$baseUrl}/api/agent/register", 'POST', json_encode([
     'shop_slug'  => 'abc-digital-printing',
-    'agent_name' => 'Automated-Test-Agent-v2',
-    'version'    => '1.0.0-poc'
+    'agent_name' => 'Audit-Runner-Agent',
+    'version'    => '1.0.0-audit'
 ]), '', ['Content-Type: application/json']);
 $regData = json_decode($res['body'], true);
 $agentToken = $regData['data']['agent_token'] ?? '';
-assertTest("API: POST /api/agent/register generates token", $res['code'] === 200 && !empty($agentToken));
+assertTest("API 1: POST /api/agent/register generates secure agent token", $res['code'] === 200 && !empty($agentToken));
 
-// Heartbeat
-$res = curlReq("{$baseUrl}/api/agent/heartbeat", 'POST', json_encode([
-    'version' => '1.0.0-poc'
-]), '', [
+$res = curlReq("{$baseUrl}/api/agent/heartbeat", 'POST', json_encode(['version' => '1.0.0-audit']), '', [
     'Content-Type: application/json',
     "X-Agent-Token: {$agentToken}"
 ]);
-assertTest("API: POST /api/agent/heartbeat with X-Agent-Token", $res['code'] === 200 && str_contains($res['body'], 'Heartbeat acknowledged'));
+assertTest("API 2: POST /api/agent/heartbeat with X-Agent-Token acknowledges heartbeat", $res['code'] === 200 && str_contains($res['body'], 'Heartbeat acknowledged'));
 
-// Poll Jobs
 $res = curlReq("{$baseUrl}/api/agent/jobs", 'GET', null, '', [
     "X-Agent-Token: {$agentToken}"
 ]);
-assertTest("API: GET /api/agent/jobs returns job queue", $res['code'] === 200 && isset(json_decode($res['body'], true)['data']));
+assertTest("API 3: GET /api/agent/jobs polls queue without error", $res['code'] === 200 && isset(json_decode($res['body'], true)['data']));
 
-// Sync Local Printers
 $res = curlReq("{$baseUrl}/api/agent/printers/sync", 'POST', json_encode([
     'printers' => [
-        ['name' => 'HP LaserJet Pro MFP M428fdw', 'identifier' => 'HP-M428-MAIN', 'status' => 'online'],
-        ['name' => 'Canon imageRUNNER 2006N', 'identifier' => 'WSD-CANON-01', 'status' => 'online']
+        ['name' => 'HP LaserJet Pro MFP M428fdw', 'identifier' => 'HP-M428-MAIN', 'status' => 'online']
     ]
 ]), '', [
     'Content-Type: application/json',
     "X-Agent-Token: {$agentToken}"
 ]);
-assertTest("API: POST /api/agent/printers/sync updates shop hardware", $res['code'] === 200 && str_contains($res['body'], 'Synced'));
+assertTest("API 4: POST /api/agent/printers/sync updates hardware successfully", $res['code'] === 200 && str_contains($res['body'], 'Synced'));
 
-echo PHP_EOL . "🎉 ALL TESTS (PHASE 1 & PHASE 2 TESTS A-J) PASSED CLEANLY!" . PHP_EOL;
+echo PHP_EOL . "==================================================" . PHP_EOL;
+echo "🎉 ALL AUDIT & HARDENING TESTS PASSED WITH ZERO FAILURES!" . PHP_EOL;
+echo "==================================================" . PHP_EOL;

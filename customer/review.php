@@ -9,26 +9,31 @@ require_once __DIR__ . '/../config/helpers.php';
 
 $token = trim($_GET['token'] ?? '');
 
-if (empty($token)) {
+if (empty($token) || strlen($token) > 64) {
     http_response_code(404);
-    die("Error 404: No order token specified. Please start your order from the shop page.");
+    die("Error 404: No valid order token specified. Please start your order from the shop page.");
 }
 
-$db = getDBConnection();
-$stmt = $db->prepare("
-    SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone, s.address AS shop_address, p.printer_name, p.status AS printer_status 
-    FROM print_jobs j 
-    INNER JOIN shops s ON j.shop_id = s.id 
-    LEFT JOIN printers p ON j.printer_id = p.id 
-    WHERE j.public_token = :token 
-    LIMIT 1
-");
-$stmt->execute([':token' => $token]);
-$job = $stmt->fetch();
+try {
+    $db = getDBConnection();
+    $stmt = $db->prepare("
+        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone, s.address AS shop_address, p.printer_name, p.status AS printer_status 
+        FROM print_jobs j 
+        INNER JOIN shops s ON j.shop_id = s.id 
+        LEFT JOIN printers p ON j.printer_id = p.id 
+        WHERE j.public_token = :token 
+        LIMIT 1
+    ");
+    $stmt->execute([':token' => $token]);
+    $job = $stmt->fetch();
+} catch (Exception $e) {
+    error_log("Review page query error: " . $e->getMessage());
+    $job = null;
+}
 
 if (!$job) {
     http_response_code(404);
-    die("Error 404: Print order token '{$token}' not found or has expired.");
+    die("Error 404: Print order token not found or has expired.");
 }
 
 $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_name']);

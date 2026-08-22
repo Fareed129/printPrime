@@ -96,9 +96,10 @@ function flash_get(): ?array {
 
 /**
  * Detect page count of a PDF file using reliable binary stream inspection
+ * Supports PDF 1.0 - 1.7 specifications, linearized documents, and compressed object streams (/ObjStm)
  *
  * @param string $filePath Absolute path to PDF file
- * @return int|false Returns page count on success, or false if unparseable
+ * @return int|false Returns page count on success, or false if unparseable/corrupted
  */
 function detect_pdf_page_count(string $filePath): int|false {
     if (!file_exists($filePath) || !is_readable($filePath)) {
@@ -117,7 +118,7 @@ function detect_pdf_page_count(string $filePath): int|false {
         return false;
     }
 
-    // Read remaining content into buffer
+    // Read full content into buffer
     $content = $header;
     while (!feof($fp)) {
         $content .= fread($fp, 65536);
@@ -126,8 +127,8 @@ function detect_pdf_page_count(string $filePath): int|false {
 
     $maxPages = 0;
 
-    // Method 1: Search for /Type /Pages ... /Count (\d+) in page tree
-    if (preg_match_all('#/Type\s*/Pages[^>]*?/Count\s+(\d+)#s', $content, $matches)) {
+    // Strategy 1: Direct uncompressed /Type /Pages ... /Count (\d+)
+    if (preg_match_all('#/Type\s*/Pages[^>]*?/Count\s+(\d+)#is', $content, $matches)) {
         foreach ($matches[1] as $cnt) {
             $val = (int)$cnt;
             if ($val > $maxPages) {
@@ -140,16 +141,16 @@ function detect_pdf_page_count(string $filePath): int|false {
         return $maxPages;
     }
 
-    // Method 2: Count individual page dictionary objects: /Type /Page (excluding /Pages)
-    if (preg_match_all('#/Type\s*/Page\b(?!s)#', $content, $matches)) {
+    // Strategy 2: Count individual uncompressed /Type /Page objects (excluding /Pages)
+    if (preg_match_all('#/Type\s*/Page\b(?!s)#i', $content, $matches)) {
         $cnt = count($matches[0]);
         if ($cnt > 0) {
             return $cnt;
         }
     }
 
-    // Method 3: Direct /Count (\d+) pattern in trailer/catalog
-    if (preg_match_all('#/Count\s+(\d+)#', $content, $matches)) {
+    // Strategy 3: Search for /Count (\d+) in document trailer / catalog
+    if (preg_match_all('#/Count\s+(\d+)#i', $content, $matches)) {
         foreach ($matches[1] as $cnt) {
             $val = (int)$cnt;
             if ($val > $maxPages) {
@@ -158,7 +159,50 @@ function detect_pdf_page_count(string $filePath): int|false {
         }
     }
 
-    return ($maxPages > 0) ? $maxPages : false;
+    if ($maxPages > 0) {
+        return $maxPages;
+    }
+
+    // Strategy 4: Compressed PDF 1.5+ Object Streams (/ObjStm with /Filter /FlateDecode)
+    if (preg_match_all('#stream[\r\n]+(.*?)[\r\n]+endstream#s', $content, $streamMatches)) {
+        $decompressedBuffer = '';
+        foreach ($streamMatches[1] as $rawStream) {
+            $uncompressed = @gzuncompress($rawStream);
+            if ($uncompressed === false) {
+                $uncompressed = @gzinflate($rawStream);
+            }
+            if ($uncompressed === false && function_exists('zlib_decode')) {
+                $uncompressed = @zlib_decode($rawStream);
+            }
+            if ($uncompressed !== false) {
+                $decompressedBuffer .= ' ' . $uncompressed;
+            }
+        }
+
+        if (!empty($decompressedBuffer)) {
+            if (preg_match_all('#/Type\s*/Pages[^>]*?/Count\s+(\d+)#is', $decompressedBuffer, $matches)) {
+                foreach ($matches[1] as $cnt) {
+                    $val = (int)$cnt;
+                    if ($val > $maxPages) {
+                        $maxPages = $val;
+                    }
+                }
+            }
+
+            if ($maxPages > 0) {
+                return $maxPages;
+            }
+
+            if (preg_match_all('#/Type\s*/Page\b(?!s)#i', $decompressedBuffer, $matches)) {
+                $cnt = count($matches[0]);
+                if ($cnt > 0) {
+                    return $cnt;
+                }
+            }
+        }
+    }
+
+    return false;
 }
 
 /**
