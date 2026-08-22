@@ -1,0 +1,38 @@
+# PrimePrint Apache Configuration & URL Rewriting
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Route /p/{shop-slug} to p.php?slug={shop-slug}
+    RewriteRule ^p/([a-zA-Z0-9_-]+)/?$ p.php?slug=$1 [L,QSA]
+
+    # Route /api/agent/printers/sync to api/agent/printers-sync.php
+    RewriteRule ^api/agent/printers/sync/?$ api/agent/printers-sync.php [L,QSA]
+
+    # Route /api/agent/jobs/{id}/file to api/agent/job-file.php?id=$1
+    RewriteRule ^api/agent/jobs/([0-9]+)/file/?$ api/agent/job-file.php?id=$1 [L,QSA]
+
+    # Route /api/agent/jobs/{id}/status to api/agent/job-status.php?id=$1
+    RewriteRule ^api/agent/jobs/([0-9]+)/status/?$ api/agent/job-status.php?id=$1 [L,QSA]
+
+    # Extensionless PHP scripts support
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME}\.php -f
+    RewriteRule ^(.*)$ $1.php [L,QSA]
+</IfModule>
+
+# Security Headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Block access to hidden files and sensitive directories
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+Options -Indexes

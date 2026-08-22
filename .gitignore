@@ -1,0 +1,27 @@
+# Node / Electron Build & Dependencies
+node_modules/
+dist/
+release/
+resources/
+locales/
+*.exe
+*.dll
+*.pak
+*.dat
+*.bin
+*.zip
+*.tar
+*.7z
+*.log
+
+# Customer Uploads (Keep folder & security guards, ignore uploaded files)
+uploads/*
+!uploads/.htaccess
+!uploads/index.php
+
+# Environment & OS files
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
+.idea/

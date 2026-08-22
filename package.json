@@ -1,0 +1,46 @@
+{
+  "name": "primeprint-agent",
+  "version": "1.0.0",
+  "description": "PrimePrint Windows Desktop Print Agent Proof of Concept",
+  "main": "src/main/main.js",
+  "keywords": [
+    "primeprint",
+    "print-agent",
+    "windows-printing",
+    "spooler"
+  ],
+  "author": "PrimePrint",
+  "license": "MIT",
+  "dependencies": {
+    "pdf-to-printer": "^5.6.0"
+  },
+  "build": {
+    "appId": "com.primeprint.agent",
+    "productName": "PrimePrint Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "dir",
+        "zip",
+        "portable"
+      ],
+      "sign": null,
+      "icon": "assets/icon.ico"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "test-assets/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/pdf-to-printer/dist/*"
+    ],
+    "portable": {
+      "artifactName": "${productName}-v${version}-Portable-x64.${ext}"
+    }
+  }
+}

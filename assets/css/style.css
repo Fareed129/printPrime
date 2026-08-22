@@ -1,0 +1,374 @@
+/* PrimePrint Web Application Design System */
+:root {
+  --pp-primary: #1d4ed8;
+  --pp-primary-hover: #1e40af;
+  --pp-primary-light: #eff6ff;
+  --pp-primary-dark: #172554;
+  
+  --pp-secondary: #475569;
+  --pp-success: #10b981;
+  --pp-warning: #f59e0b;
+  --pp-danger: #ef4444;
+  --pp-info: #0ea5e9;
+
+  --pp-bg-body: #f8fafc;
+  --pp-bg-card: #ffffff;
+  --pp-border: #e2e8f0;
+  --pp-text-main: #0f172a;
+  --pp-text-muted: #64748b;
+
+  --pp-sidebar-width: 260px;
+  --pp-radius: 12px;
+  --pp-shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --pp-shadow-md: 0 4px 12px rgba(0,0,0,0.07);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--pp-bg-body);
+  color: var(--pp-text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Typography & Links */
+a {
+  color: var(--pp-primary);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+a:hover {
+  color: var(--pp-primary-hover);
+}
+
+/* Navbar & Brand */
+.navbar-primeprint {
+  background-color: #ffffff;
+  border-bottom: 1px solid var(--pp-border);
+  box-shadow: var(--pp-shadow-sm);
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--pp-primary) 0%, #0284c7 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+/* Admin & Shop Layout */
+.app-layout {
+  display: flex;
+  flex: 1;
+}
+
+.app-sidebar {
+  width: var(--pp-sidebar-width);
+  background: #ffffff;
+  border-right: 1px solid var(--pp-border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: calc(100vh - 60px);
+}
+
+.sidebar-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--pp-border);
+  background: #fafafa;
+}
+
+.sidebar-role-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.sidebar-nav {
+  list-style: none;
+  padding: 12px 10px;
+  margin: 0;
+  flex: 1;
+}
+
+.sidebar-item {
+  margin-bottom: 4px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  color: var(--pp-text-muted);
+  font-weight: 500;
+  font-size: 0.92rem;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.sidebar-link:hover {
+  background-color: var(--pp-primary-light);
+  color: var(--pp-primary);
+}
+
+.sidebar-link.active {
+  background-color: var(--pp-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.sidebar-link.active i {
+  color: #ffffff;
+}
+
+.sidebar-link i {
+  font-size: 1.1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.app-main {
+  flex: 1;
+  padding: 24px 30px;
+  overflow-y: auto;
+  max-width: 1400px;
+}
+
+/* Cards */
+.card-pp {
+  background: var(--pp-bg-card);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  box-shadow: var(--pp-shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-pp:hover {
+  box-shadow: var(--pp-shadow-md);
+}
+
+.card-pp-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--pp-border);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-pp-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--pp-text-main);
+}
+
+.card-pp-body {
+  padding: 20px;
+}
+
+/* Metric / Stat KPI Cards */
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: var(--pp-radius);
+  background: #ffffff;
+  border: 1px solid var(--pp-border);
+  box-shadow: var(--pp-shadow-sm);
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.stat-icon.blue { background: #eff6ff; color: #2563eb; }
+.stat-icon.green { background: #ecfdf5; color: #10b981; }
+.stat-icon.amber { background: #fffbeb; color: #f59e0b; }
+.stat-icon.purple { background: #f5f3ff; color: #8b5cf6; }
+.stat-icon.cyan { background: #ecfeff; color: #06b6d4; }
+.stat-icon.red { background: #fef2f2; color: #ef4444; }
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--pp-text-main);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--pp-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Status Badges */
+.badge-status {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.badge-status.active,
+.badge-status.online,
+.badge-status.completed,
+.badge-status.PRINTED,
+.badge-status.PAID {
+  background-color: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-status.inactive,
+.badge-status.offline,
+.badge-status.failed,
+.badge-status.FAILED,
+.badge-status.CANCELLED {
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.badge-status.pending,
+.badge-status.UPLOADED,
+.badge-status.PAYMENT_PENDING,
+.badge-status.QUEUED {
+  background-color: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.badge-status.printing,
+.badge-status.PRINTING,
+.badge-status.DOWNLOADING {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+/* Customer Mobile-First Interface */
+.customer-hero {
+  background: linear-gradient(135deg, #1e40af 0%, #0284c7 100%);
+  color: #ffffff;
+  padding: 36px 20px 48px;
+  text-align: center;
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
+  box-shadow: 0 10px 25px rgba(29, 78, 216, 0.2);
+}
+
+.customer-container {
+  max-width: 580px;
+  margin: -28px auto 40px;
+  padding: 0 16px;
+}
+
+.dropzone-upload {
+  border: 2px dashed #93c5fd;
+  background-color: #f0f9ff;
+  border-radius: var(--pp-radius);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dropzone-upload:hover,
+.dropzone-upload.drag-over {
+  border-color: var(--pp-primary);
+  background-color: #e0f2fe;
+}
+
+.pricing-preview-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+/* Buttons */
+.btn-primary-pp {
+  background-color: var(--pp-primary);
+  border-color: var(--pp-primary);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 18px;
+  transition: all 0.15s ease;
+}
+
+.btn-primary-pp:hover {
+  background-color: var(--pp-primary-hover);
+  border-color: var(--pp-primary-hover);
+  color: #ffffff;
+}
+
+/* Tables */
+.table-pp {
+  vertical-align: middle;
+}
+.table-pp thead th {
+  background-color: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pp-text-muted);
+  border-top: none;
+  border-bottom: 1px solid var(--pp-border);
+  padding: 12px 14px;
+}
+.table-pp tbody td {
+  padding: 14px;
+  border-bottom: 1px solid var(--pp-border);
+  font-size: 0.88rem;
+}
+
+/* QR Standee Printable Card */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-qr-card, .printable-qr-card * {
+    visibility: visible;
+  }
+  .printable-qr-card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    max-width: 450px;
+    border: 2px solid #000;
+    padding: 30px;
+    text-align: center;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
