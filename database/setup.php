@@ -50,6 +50,20 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
 
+    // 3b. Migration Check: Ensure public_token exists in print_jobs
+    $colCheck = $dbPdo->query("SHOW COLUMNS FROM `print_jobs` LIKE 'public_token'")->fetch();
+    if (!$colCheck) {
+        $dbPdo->exec("ALTER TABLE `print_jobs` ADD COLUMN `public_token` VARCHAR(64) NULL AFTER `id`");
+        $existingJobs = $dbPdo->query("SELECT id FROM `print_jobs` WHERE public_token IS NULL OR public_token = ''")->fetchAll();
+        foreach ($existingJobs as $ej) {
+            $tok = 'PP-' . strtoupper(bin2hex(random_bytes(4)));
+            $upStmt = $dbPdo->prepare("UPDATE `print_jobs` SET `public_token` = :tok WHERE `id` = :id");
+            $upStmt->execute([':tok' => $tok, ':id' => $ej['id']]);
+        }
+        $dbPdo->exec("ALTER TABLE `print_jobs` MODIFY COLUMN `public_token` VARCHAR(64) NOT NULL, ADD UNIQUE KEY `uniq_public_token` (`public_token`)");
+        outputMsg("Migrated `print_jobs` table: added unique `public_token` column.");
+    }
+
     // 4. Seed Super Admin
     $adminPasswordHash = password_hash('ChangeMe123!', PASSWORD_BCRYPT);
     $stmt = $dbPdo->prepare("

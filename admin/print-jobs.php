@@ -131,7 +131,12 @@ require_once __DIR__ . '/../includes/header.php';
           <?php else: ?>
             <?php foreach ($jobs as $j): ?>
               <tr>
-                <td><span class="fw-mono fw-bold text-dark">#<?= $j['id'] ?></span></td>
+                <td>
+                  <span class="fw-mono fw-bold text-dark">#<?= $j['id'] ?></span>
+                  <?php if (!empty($j['public_token'])): ?>
+                    <div class="small text-primary font-monospace" style="font-size: 0.72rem;"><?= e($j['public_token']) ?></div>
+                  <?php endif; ?>
+                </td>
                 <td>
                   <a href="<?= APP_URL ?>/admin/shop-view.php?id=<?= $j['shop_id'] ?>" class="text-dark fw-semibold text-decoration-none">
                     <?= e($j['shop_name']) ?>

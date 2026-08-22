@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileInput = document.getElementById('customerFileInput');
   const filePreview = document.getElementById('filePreviewBox');
   const fileNameDisplay = document.getElementById('previewFileName');
+  const fileTypeDisplay = document.getElementById('previewFileType');
   const fileSizeDisplay = document.getElementById('previewFileSize');
-  const pageCountInput = document.getElementById('pageCountInput');
   const copiesInput = document.getElementById('copiesInput');
   const paperSizeSelect = document.getElementById('paperSizeSelect');
   const colorModeSelect = document.getElementById('colorModeSelect');
@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const priceDisplay = document.getElementById('livePriceDisplay');
   const unitRateDisplay = document.getElementById('liveUnitRateDisplay');
   const submitBtn = document.getElementById('btnSubmitOrder');
+  const printerRadios = document.querySelectorAll('input[name="printer_id"]');
 
   if (dropzone && fileInput) {
     dropzone.addEventListener('click', () => fileInput.click());
@@ -65,14 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
     dropzone.addEventListener('drop', (e) => {
       const dt = e.dataTransfer;
       const files = dt.files;
-      if (files.length > 0) {
+      if (files && files.length > 0) {
         fileInput.files = files;
         handleFileSelect(files[0]);
       }
     });
 
     fileInput.addEventListener('change', () => {
-      if (fileInput.files.length > 0) {
+      if (fileInput.files && fileInput.files.length > 0) {
         handleFileSelect(fileInput.files[0]);
       }
     });
@@ -86,19 +87,32 @@ document.addEventListener('DOMContentLoaded', () => {
     if (file.size > maxBytes) {
       alert('File size exceeds the maximum limit of 25MB.');
       fileInput.value = '';
-      if (filePreview) filePreview.style.display = 'none';
+      if (filePreview) filePreview.classList.add('d-none');
+      if (submitBtn) submitBtn.disabled = true;
+      return;
+    }
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) {
+      alert('Only PDF, JPG, JPEG, and PNG files are supported.');
+      fileInput.value = '';
+      if (filePreview) filePreview.classList.add('d-none');
+      if (submitBtn) submitBtn.disabled = true;
       return;
     }
 
     if (fileNameDisplay) fileNameDisplay.textContent = file.name;
+    if (fileTypeDisplay) fileTypeDisplay.textContent = ext.toUpperCase();
     if (fileSizeDisplay) {
       const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
       fileSizeDisplay.textContent = `${sizeMb} MB`;
     }
-    if (filePreview) filePreview.style.display = 'flex';
-    if (submitBtn) submitBtn.disabled = false;
+    if (filePreview) {
+      filePreview.classList.remove('d-none');
+      filePreview.classList.add('d-flex');
+    }
 
-    // Trigger price update
+    // Trigger price and state update
     updateEstimatedPrice();
   }
 
@@ -108,38 +122,63 @@ document.addEventListener('DOMContentLoaded', () => {
     const paperSize = paperSizeSelect ? paperSizeSelect.value : 'A4';
     const colorMode = colorModeSelect ? colorModeSelect.value : 'BW';
     const sideMode = sideModeSelect ? sideModeSelect.value : 'single';
-    const pageCount = pageCountInput ? Math.max(1, parseInt(pageCountInput.value) || 1) : 1;
-    const copies = copiesInput ? Math.max(1, parseInt(copiesInput.value) || 1) : 1;
+    const copies = copiesInput ? Math.max(1, Math.min(100, parseInt(copiesInput.value) || 1)) : 1;
 
-    // Read active shop pricing table embedded in window.SHOP_PRICING_TABLE
-    let unitRate = 2.00;
+    let isOptionAvailable = false;
+    let unitRate = 0.00;
+
     if (window.SHOP_PRICING_TABLE && Array.isArray(window.SHOP_PRICING_TABLE)) {
       const match = window.SHOP_PRICING_TABLE.find(p => 
         p.paper_size === paperSize && p.color_mode === colorMode && p.side_mode === sideMode
       );
       if (match) {
         unitRate = parseFloat(match.price_per_page);
-      } else {
-        unitRate = (colorMode === 'COLOR') ? 10.00 : ((sideMode === 'double') ? 3.00 : 2.00);
+        isOptionAvailable = true;
       }
-    } else {
-      unitRate = (colorMode === 'COLOR') ? 10.00 : ((sideMode === 'double') ? 3.00 : 2.00);
     }
 
-    const total = (unitRate * pageCount * copies).toFixed(2);
-    priceDisplay.textContent = `₹${total}`;
-    if (unitRateDisplay) {
-      unitRateDisplay.textContent = `₹${unitRate.toFixed(2)} / page`;
+    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+    const selectedPrinter = document.querySelector('input[name="printer_id"]:checked:not(:disabled)');
+
+    if (isOptionAvailable) {
+      const estimatedTotal = (unitRate * copies).toFixed(2);
+      priceDisplay.textContent = `₹${estimatedTotal}`;
+      if (unitRateDisplay) {
+        unitRateDisplay.textContent = `₹${unitRate.toFixed(2)} / page`;
+        unitRateDisplay.className = 'fw-semibold text-dark';
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = !(hasFile && selectedPrinter);
+      }
+    } else {
+      priceDisplay.textContent = 'Option Unavailable';
+      if (unitRateDisplay) {
+        unitRateDisplay.textContent = 'Not configured by shop';
+        unitRateDisplay.className = 'fw-semibold text-danger';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+      }
     }
   }
 
   // Bind live price change events
-  [paperSizeSelect, colorModeSelect, sideModeSelect, pageCountInput, copiesInput].forEach(el => {
+  [paperSizeSelect, colorModeSelect, sideModeSelect, copiesInput].forEach(el => {
     if (el) {
       el.addEventListener('change', updateEstimatedPrice);
       el.addEventListener('input', updateEstimatedPrice);
     }
   });
+
+  if (printerRadios && printerRadios.length > 0) {
+    printerRadios.forEach(radio => {
+      radio.addEventListener('change', updateEstimatedPrice);
+    });
+  }
+
+  // Run initial estimate calculation on load
+  updateEstimatedPrice();
 
   // 4. Copy to Clipboard Utility
   window.copyToClipboard = function(text, btnElement) {

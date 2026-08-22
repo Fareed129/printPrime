@@ -95,11 +95,104 @@ function flash_get(): ?array {
 }
 
 /**
- * Recalculate price server-side using shop active pricing rules
+ * Detect page count of a PDF file using reliable binary stream inspection
+ *
+ * @param string $filePath Absolute path to PDF file
+ * @return int|false Returns page count on success, or false if unparseable
+ */
+function detect_pdf_page_count(string $filePath): int|false {
+    if (!file_exists($filePath) || !is_readable($filePath)) {
+        return false;
+    }
+
+    $fp = @fopen($filePath, 'rb');
+    if (!$fp) {
+        return false;
+    }
+
+    // Read header to verify %PDF- signature
+    $header = fread($fp, 1024);
+    if (!str_contains($header, '%PDF-')) {
+        fclose($fp);
+        return false;
+    }
+
+    // Read remaining content into buffer
+    $content = $header;
+    while (!feof($fp)) {
+        $content .= fread($fp, 65536);
+    }
+    fclose($fp);
+
+    $maxPages = 0;
+
+    // Method 1: Search for /Type /Pages ... /Count (\d+) in page tree
+    if (preg_match_all('#/Type\s*/Pages[^>]*?/Count\s+(\d+)#s', $content, $matches)) {
+        foreach ($matches[1] as $cnt) {
+            $val = (int)$cnt;
+            if ($val > $maxPages) {
+                $maxPages = $val;
+            }
+        }
+    }
+
+    if ($maxPages > 0) {
+        return $maxPages;
+    }
+
+    // Method 2: Count individual page dictionary objects: /Type /Page (excluding /Pages)
+    if (preg_match_all('#/Type\s*/Page\b(?!s)#', $content, $matches)) {
+        $cnt = count($matches[0]);
+        if ($cnt > 0) {
+            return $cnt;
+        }
+    }
+
+    // Method 3: Direct /Count (\d+) pattern in trailer/catalog
+    if (preg_match_all('#/Count\s+(\d+)#', $content, $matches)) {
+        foreach ($matches[1] as $cnt) {
+            $val = (int)$cnt;
+            if ($val > $maxPages) {
+                $maxPages = $val;
+            }
+        }
+    }
+
+    return ($maxPages > 0) ? $maxPages : false;
+}
+
+/**
+ * Generate a safe, unique public order token for customer-facing tracking
+ * Format: PP-XXXX-XXXX (e.g. PP-X7K9-2D4M)
+ */
+function generate_public_order_token(PDO $db): string {
+    $chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // base32 without ambiguous chars
+    $len = strlen($chars);
+
+    while (true) {
+        $part1 = '';
+        $part2 = '';
+        for ($i = 0; $i < 4; $i++) {
+            $part1 .= $chars[random_int(0, $len - 1)];
+            $part2 .= $chars[random_int(0, $len - 1)];
+        }
+        $token = "PP-{$part1}-{$part2}";
+
+        $stmt = $db->prepare("SELECT id FROM print_jobs WHERE public_token = :token LIMIT 1");
+        $stmt->execute([':token' => $token]);
+        if (!$stmt->fetch()) {
+            return $token;
+        }
+    }
+}
+
+/**
+ * Recalculate price server-side strictly using shop active pricing rules
+ * IMPORTANT: If pricing tier is not configured by the shop, return an error. NEVER fallback to invented default rates.
  */
 function calculate_order_price(PDO $db, int $shopId, string $paperSize, string $colorMode, string $sideMode, int $pageCount, int $copies): array {
     $pageCount = max(1, $pageCount);
-    $copies = max(1, $copies);
+    $copies = max(1, min(100, $copies));
 
     $stmt = $db->prepare("
         SELECT price_per_page 
@@ -122,13 +215,13 @@ function calculate_order_price(PDO $db, int $shopId, string $paperSize, string $
     $pricing = $stmt->fetch();
 
     if (!$pricing) {
-        // Fallback default pricing if specific tier is not configured
-        $defaultRate = ($colorMode === 'COLOR') ? 10.00 : (($sideMode === 'double') ? 3.00 : 2.00);
-        $unitPrice = $defaultRate;
-    } else {
-        $unitPrice = (float)$pricing['price_per_page'];
+        return [
+            'success' => false,
+            'error'   => 'This printing option is currently unavailable.'
+        ];
     }
 
+    $unitPrice = (float)$pricing['price_per_page'];
     $totalAmount = round($unitPrice * $pageCount * $copies, 2);
 
     return [

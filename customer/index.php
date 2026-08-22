@@ -1,6 +1,6 @@
 <?php
 /**
- * PrimePrint Customer Upload & Ordering Page
+ * PrimePrint Customer Upload & Printing Configuration Portal
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -15,53 +15,95 @@ if (!isset($shop) || empty($shop)) {
 
 $db = getDBConnection();
 
-// Fetch active pricing for this shop to populate client-side pricing matrix
-$stmt = $db->prepare("SELECT paper_size, color_mode, side_mode, price_per_page FROM pricing WHERE shop_id = :shop_id AND active = 1");
+// 1. Fetch active pricing combinations for this shop
+$stmt = $db->prepare("
+    SELECT paper_size, color_mode, side_mode, price_per_page 
+    FROM pricing 
+    WHERE shop_id = :shop_id AND active = 1 
+    ORDER BY paper_size, color_mode, side_mode
+");
 $stmt->execute([':shop_id' => $shop['id']]);
 $shopPricing = $stmt->fetchAll();
 
+// Extract unique configured options
+$availablePaperSizes = array_values(array_unique(array_column($shopPricing, 'paper_size')));
+$availableColorModes = array_values(array_unique(array_column($shopPricing, 'color_mode')));
+$availableSideModes  = array_values(array_unique(array_column($shopPricing, 'side_mode')));
+
+// 2. Fetch physical printers belonging strictly to this shop
+$stmt = $db->prepare("
+    SELECT id, printer_name, printer_identifier, status 
+    FROM printers 
+    WHERE shop_id = :shop_id 
+    ORDER BY (status IN ('online', 'idle')) DESC, printer_name ASC
+");
+$stmt->execute([':shop_id' => $shop['id']]);
+$printers = $stmt->fetchAll();
+
+// Check if there is at least one online printer
+$onlinePrinters = array_filter($printers, fn($p) => in_array($p['status'], ['online', 'idle']));
+$hasOnlinePrinter = count($onlinePrinters) > 0;
+
 $errors = [];
 
+// Handle Customer Order Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
 
-    $paperSize = in_array($_POST['paper_size'] ?? '', ['A4', 'A3', 'Legal']) ? $_POST['paper_size'] : 'A4';
-    $colorMode = in_array($_POST['color_mode'] ?? '', ['BW', 'COLOR']) ? $_POST['color_mode'] : 'BW';
-    $sideMode  = in_array($_POST['side_mode'] ?? '', ['single', 'double']) ? $_POST['side_mode'] : 'single';
-    $pageCount = max(1, (int)($_POST['page_count'] ?? 1));
-    $copies    = max(1, (int)($_POST['copies'] ?? 1));
+    $paperSize = trim($_POST['paper_size'] ?? '');
+    $colorMode = trim($_POST['color_mode'] ?? '');
+    $sideMode  = trim($_POST['side_mode'] ?? '');
+    $copies    = (int)($_POST['copies'] ?? 1);
+    $printerId = (int)($_POST['printer_id'] ?? 0);
 
-    // File Upload Validation
+    // Validate Copies
+    if ($copies < 1 || $copies > 100) {
+        $errors[] = 'Copies must be a valid number between 1 and 100.';
+    }
+
+    // Validate Printer Selection (Server-Side Shop Isolation)
+    if ($printerId <= 0) {
+        $errors[] = 'Please select a printer for your order.';
+    } else {
+        $stmt = $db->prepare("SELECT id, printer_name, status FROM printers WHERE id = :id AND shop_id = :shop_id LIMIT 1");
+        $stmt->execute([':id' => $printerId, ':shop_id' => $shop['id']]);
+        $selectedPrinter = $stmt->fetch();
+
+        if (!$selectedPrinter) {
+            $errors[] = 'Invalid printer selected.';
+        } elseif (!in_array($selectedPrinter['status'], ['online', 'idle'])) {
+            $errors[] = 'The selected printer is currently offline. Please choose an online printer.';
+        }
+    }
+
+    // Validate Document Upload
     if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
-        $errors[] = 'Please select a document to upload.';
+        $errors[] = 'Please choose a document to upload.';
     } else {
         $file = $_FILES['document'];
         $originalName = basename($file['name']);
         $fileSize = $file['size'];
         $tmpPath = $file['tmp_name'];
 
-        // Size check
         if ($fileSize > MAX_FILE_SIZE_BYTES) {
-            $errors[] = 'File size exceeds 25 MB limit.';
+            $errors[] = 'File size exceeds the 25 MB limit.';
         }
 
-        // Extension check
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         if (!in_array($ext, ALLOWED_EXTENSIONS, true)) {
             $errors[] = 'Only PDF, JPG, JPEG, and PNG files are supported.';
         }
 
-        // MIME type check
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $tmpPath);
         finfo_close($finfo);
 
         if (!in_array($mimeType, ALLOWED_MIME_TYPES, true)) {
-            $errors[] = "Invalid file type ({$mimeType}). Please upload a valid PDF or Image.";
+            $errors[] = "Invalid file format ({$mimeType}). Please upload a valid document or image.";
         }
 
         if (empty($errors)) {
-            // Generate randomized storage filename
+            // Generate secure randomized storage filename
             $storedFileName = bin2hex(random_bytes(16)) . '.' . $ext;
             $destination = UPLOAD_DIR . $storedFileName;
 
@@ -70,59 +112,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (!move_uploaded_file($tmpPath, $destination)) {
-                $errors[] = 'Failed to securely store uploaded file. Please try again.';
+                $errors[] = 'Failed to securely store uploaded document. Please try again.';
             } else {
-                try {
-                    // SERVER-SIDE PRICE CALCULATION (Never trust client sent prices)
-                    $priceResult = calculate_order_price($db, $shop['id'], $paperSize, $colorMode, $sideMode, $pageCount, $copies);
-                    $calculatedAmount = $priceResult['total_amount'];
+                // Server-Side Page Count Determination
+                if ($ext === 'pdf' || str_contains($mimeType, 'pdf')) {
+                    $detectedPages = detect_pdf_page_count($destination);
+                    if ($detectedPages === false || $detectedPages <= 0) {
+                        @unlink($destination);
+                        $errors[] = 'Unable to safely determine document page count. Please ensure the PDF is not corrupted or password-protected.';
+                    } else {
+                        $serverPageCount = $detectedPages;
+                    }
+                } else {
+                    // Images count as 1 page
+                    $serverPageCount = 1;
+                }
 
-                    // Insert Print Job
-                    $stmt = $db->prepare("
-                        INSERT INTO print_jobs (
-                            shop_id, file_name, stored_file_name, file_path, file_type, 
-                            page_count, copies, paper_size, color_mode, side_mode, 
-                            amount, status, payment_status
-                        ) VALUES (
-                            :shop_id, :file_name, :stored_file_name, :file_path, :file_type, 
-                            :page_count, :copies, :paper_size, :color_mode, :side_mode, 
-                            :amount, 'PAYMENT_PENDING', 'pending'
-                        )
-                    ");
+                if (empty($errors)) {
+                    // Server-Side Price Calculation (NO FALLBACKS)
+                    $priceResult = calculate_order_price($db, $shop['id'], $paperSize, $colorMode, $sideMode, $serverPageCount, $copies);
 
-                    $stmt->execute([
-                        ':shop_id'          => $shop['id'],
-                        ':file_name'        => $originalName,
-                        ':stored_file_name' => $storedFileName,
-                        ':file_path'        => $destination,
-                        ':file_type'        => $mimeType,
-                        ':page_count'       => $pageCount,
-                        ':copies'           => $copies,
-                        ':paper_size'       => $paperSize,
-                        ':color_mode'       => $colorMode,
-                        ':side_mode'        => $sideMode,
-                        ':amount'           => $calculatedAmount
-                    ]);
+                    if (!$priceResult['success']) {
+                        @unlink($destination);
+                        $errors[] = $priceResult['error'];
+                    } else {
+                        $calculatedAmount = $priceResult['total_amount'];
 
-                    $jobId = (int)$db->lastInsertId();
+                        try {
+                            // Generate safe unique public order token
+                            $publicToken = generate_public_order_token($db);
 
-                    // Insert Payment Placeholder
-                    $stmt = $db->prepare("
-                        INSERT INTO payments (job_id, shop_id, razorpay_order_id, amount, status)
-                        VALUES (:job_id, :shop_id, :order_id, :amount, 'created')
-                    ");
-                    $stmt->execute([
-                        ':job_id'   => $jobId,
-                        ':shop_id'  => $shop['id'],
-                        ':order_id' => 'ORD_' . strtoupper(bin2hex(random_bytes(6))),
-                        ':amount'   => $calculatedAmount
-                    ]);
+                            // Insert Print Job in PAYMENT_PENDING state
+                            $stmt = $db->prepare("
+                                INSERT INTO print_jobs (
+                                    public_token, shop_id, printer_id, file_name, stored_file_name, file_path, file_type, 
+                                    page_count, copies, paper_size, color_mode, side_mode, 
+                                    amount, status, payment_status
+                                ) VALUES (
+                                    :public_token, :shop_id, :printer_id, :file_name, :stored_file_name, :file_path, :file_type, 
+                                    :page_count, :copies, :paper_size, :color_mode, :side_mode, 
+                                    :amount, 'PAYMENT_PENDING', 'pending'
+                                )
+                            ");
 
-                    header("Location: " . APP_URL . "/customer/order-success.php?id=" . $jobId);
-                    exit;
+                            $stmt->execute([
+                                ':public_token'     => $publicToken,
+                                ':shop_id'          => $shop['id'],
+                                ':printer_id'       => $printerId,
+                                ':file_name'        => $originalName,
+                                ':stored_file_name' => $storedFileName,
+                                ':file_path'        => $destination,
+                                ':file_type'        => $mimeType,
+                                ':page_count'       => $serverPageCount,
+                                ':copies'           => $copies,
+                                ':paper_size'       => $paperSize,
+                                ':color_mode'       => $colorMode,
+                                ':side_mode'        => $sideMode,
+                                ':amount'           => $calculatedAmount
+                            ]);
 
-                } catch (Exception $e) {
-                    $errors[] = 'Database error creating order: ' . $e->getMessage();
+                            $jobId = (int)$db->lastInsertId();
+
+                            // Insert Payment Record
+                            $stmt = $db->prepare("
+                                INSERT INTO payments (job_id, shop_id, razorpay_order_id, amount, status)
+                                VALUES (:job_id, :shop_id, :order_id, :amount, 'created')
+                            ");
+                            $stmt->execute([
+                                ':job_id'   => $jobId,
+                                ':shop_id'  => $shop['id'],
+                                ':order_id' => 'ORD_' . strtoupper(bin2hex(random_bytes(6))),
+                                ':amount'   => $calculatedAmount
+                            ]);
+
+                            // Redirect to dedicated Review Page using public order token
+                            header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($publicToken));
+                            exit;
+
+                        } catch (Exception $e) {
+                            @unlink($destination);
+                            $errors[] = 'Unable to create print order. Please try again.';
+                        }
+                    }
                 }
             }
         }
@@ -149,23 +220,23 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 
   <!-- Mobile-First Hero Section -->
   <header class="customer-hero">
-    <div class="container" style="max-width: 580px;">
+    <div class="container" style="max-width: 600px;">
       <span class="badge bg-white text-primary rounded-pill px-3 py-1 fw-bold text-uppercase mb-2 shadow-sm" style="font-size: 0.75rem;">
         <i class="bi bi-printer-fill me-1"></i> <?= e($shop['name']) ?>
       </span>
-      <h2 class="fw-bold mb-2">Print Your Documents</h2>
-      <p class="mb-0 text-white-50 small">Upload your document, select printing preferences and pay online.</p>
+      <h2 class="fw-bold mb-1">Self-Service Document Printing</h2>
+      <p class="mb-0 text-white-50 small">Upload your document, configure printing options, and review your order.</p>
     </div>
   </header>
 
-  <!-- Upload & Preferences Form Container -->
+  <!-- Upload & Preferences Container -->
   <main class="customer-container">
     
     <div class="card card-pp shadow-sm mb-4">
       <div class="card-body p-4">
 
         <?php if (!empty($errors)): ?>
-          <div class="alert alert-danger py-2 small" role="alert">
+          <div class="alert alert-danger py-2 small mb-4" role="alert">
             <ul class="mb-0 ps-3">
               <?php foreach ($errors as $err): ?>
                 <li><?= e($err) ?></li>
@@ -174,97 +245,169 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
           </div>
         <?php endif; ?>
 
+        <?php if (!$hasOnlinePrinter): ?>
+          <div class="alert alert-warning py-3 small mb-4 d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill fs-4 text-warning"></i>
+            <div>
+              <strong>No printer is currently available.</strong><br>
+              All printers at this shop are currently offline. Please check with the counter staff or try again later.
+            </div>
+          </div>
+        <?php endif; ?>
+
+        <?php if (empty($shopPricing)): ?>
+          <div class="alert alert-danger py-3 small mb-4">
+            <i class="bi bi-x-circle-fill me-1"></i>
+            This shop has not configured any active printing rates yet.
+          </div>
+        <?php endif; ?>
+
         <form method="POST" action="<?= APP_URL ?>/p/<?= e($shop['slug']) ?>" enctype="multipart/form-data" id="customerPrintForm">
           <?= csrf_field() ?>
 
-          <!-- Step 1: Upload Document -->
+          <!-- STEP 1: Upload Document -->
           <div class="mb-4">
-            <label class="form-label fw-bold text-dark mb-2">
-              <span class="badge bg-primary rounded-circle me-1">1</span> Select Document
-            </label>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <label class="form-label fw-bold text-dark mb-0">
+                <span class="badge bg-primary rounded-circle me-1">1</span> Select Document
+              </label>
+              <span class="small text-muted">Max 25 MB</span>
+            </div>
 
             <div class="dropzone-upload" id="customerDropzone">
               <i class="bi bi-cloud-arrow-up-fill text-primary display-4 d-block mb-2"></i>
               <div class="fw-bold text-dark mb-1">Tap to browse or drop file here</div>
-              <div class="small text-muted mb-2">Supported: PDF, JPG, JPEG, PNG (Max 25MB)</div>
+              <div class="small text-muted mb-2">Supported formats: PDF, JPG, JPEG, PNG</div>
               <button type="button" class="btn btn-outline-primary btn-sm px-3 rounded-pill">
                 <i class="bi bi-folder2-open me-1"></i> Choose File
               </button>
               <input type="file" name="document" id="customerFileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" class="d-none" required>
             </div>
 
-            <!-- Selected File Preview -->
+            <!-- Selected File Information Display -->
             <div id="filePreviewBox" class="p-3 bg-light rounded border mt-3 d-none align-items-center justify-content-between">
               <div class="d-flex align-items-center gap-2 text-truncate">
-                <i class="bi bi-file-earmark-check-fill text-success fs-3"></i>
+                <i class="bi bi-file-earmark-check-fill text-success fs-2"></i>
                 <div class="text-truncate">
                   <div class="fw-bold text-dark text-truncate" id="previewFileName">document.pdf</div>
-                  <div class="small text-muted" id="previewFileSize">0 MB</div>
+                  <div class="small text-muted">
+                    <span id="previewFileType">PDF</span> • <span id="previewFileSize">0 MB</span>
+                  </div>
                 </div>
               </div>
-              <span class="badge bg-success-subtle text-success border border-success-subtle">Ready</span>
+              <span class="badge bg-success-subtle text-success border border-success-subtle">Attached</span>
             </div>
           </div>
 
-          <!-- Step 2: Printing Preferences -->
+          <!-- STEP 2: Printing Preferences -->
           <div class="mb-4">
             <label class="form-label fw-bold text-dark mb-2">
               <span class="badge bg-primary rounded-circle me-1">2</span> Printing Preferences
             </label>
 
             <div class="row g-3">
+              <!-- Paper Size -->
               <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Paper Size</label>
-                <select name="paper_size" id="paperSizeSelect" class="form-select">
-                  <option value="A4" selected>A4 (Standard)</option>
-                  <option value="A3">A3 (Large)</option>
-                  <option value="Legal">Legal</option>
+                <label class="form-label small fw-semibold text-secondary">Paper Size <span class="text-danger">*</span></label>
+                <select name="paper_size" id="paperSizeSelect" class="form-select" required>
+                  <?php if (empty($availablePaperSizes)): ?>
+                    <option value="A4">A4</option>
+                  <?php else: ?>
+                    <?php foreach ($availablePaperSizes as $size): ?>
+                      <option value="<?= e($size) ?>"><?= e($size) ?></option>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
                 </select>
               </div>
 
+              <!-- Color Mode -->
               <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Color Mode</label>
-                <select name="color_mode" id="colorModeSelect" class="form-select">
-                  <option value="BW" selected>Black & White</option>
-                  <option value="COLOR">Full Color</option>
+                <label class="form-label small fw-semibold text-secondary">Color Mode <span class="text-danger">*</span></label>
+                <select name="color_mode" id="colorModeSelect" class="form-select" required>
+                  <?php if (empty($availableColorModes)): ?>
+                    <option value="BW">Black & White</option>
+                    <option value="COLOR">Full Color</option>
+                  <?php else: ?>
+                    <?php foreach ($availableColorModes as $mode): ?>
+                      <option value="<?= e($mode) ?>"><?= $mode === 'BW' ? 'Black & White' : 'Full Color' ?></option>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
                 </select>
               </div>
 
-              <div class="col-12">
-                <label class="form-label small fw-semibold text-secondary">Sides / Layout</label>
-                <select name="side_mode" id="sideModeSelect" class="form-select">
-                  <option value="single" selected>Single Sided (Front only)</option>
-                  <option value="double">Double Sided (Back-to-Back)</option>
+              <!-- Side Mode -->
+              <div class="col-6">
+                <label class="form-label small fw-semibold text-secondary">Sides <span class="text-danger">*</span></label>
+                <select name="side_mode" id="sideModeSelect" class="form-select" required>
+                  <?php if (empty($availableSideModes)): ?>
+                    <option value="single">Single Sided</option>
+                    <option value="double">Double Sided</option>
+                  <?php else: ?>
+                    <?php foreach ($availableSideModes as $side): ?>
+                      <option value="<?= e($side) ?>"><?= ucfirst(e($side)) ?> Sided</option>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
                 </select>
               </div>
 
+              <!-- Copies -->
               <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Total Pages</label>
-                <input type="number" name="page_count" id="pageCountInput" value="1" min="1" max="1000" class="form-control" required>
-              </div>
-
-              <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Copies</label>
+                <label class="form-label small fw-semibold text-secondary">Copies <span class="text-danger">*</span></label>
                 <input type="number" name="copies" id="copiesInput" value="1" min="1" max="100" class="form-control" required>
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Estimated Price Summary -->
+          <!-- STEP 3: Select Printer -->
+          <div class="mb-4">
+            <label class="form-label fw-bold text-dark mb-2">
+              <span class="badge bg-primary rounded-circle me-1">3</span> Select Counter Printer
+            </label>
+
+            <?php if (empty($printers)): ?>
+              <div class="p-3 bg-light rounded text-center text-muted small">
+                No physical printers are registered for this shop.
+              </div>
+            <?php else: ?>
+              <div class="list-group">
+                <?php foreach ($printers as $idx => $p): 
+                  $isOnline = in_array($p['status'], ['online', 'idle']);
+                ?>
+                  <label class="list-group-item d-flex align-items-center justify-content-between p-3 <?= !$isOnline ? 'bg-light text-muted' : '' ?>" style="cursor: <?= $isOnline ? 'pointer' : 'not-allowed' ?>;">
+                    <div class="d-flex align-items-center gap-3">
+                      <input class="form-check-input flex-shrink-0" type="radio" name="printer_id" value="<?= $p['id'] ?>" <?= ($isOnline && ($idx === 0 || !isset($firstChecked))) ? ($firstChecked = true ? 'checked' : '') : '' ?> <?= !$isOnline ? 'disabled' : '' ?> required>
+                      <div>
+                        <div class="fw-semibold text-dark"><?= e($p['printer_name']) ?></div>
+                        <div class="small text-muted font-monospace"><?= e($p['printer_identifier'] ?? 'Standard Spooler') ?></div>
+                      </div>
+                    </div>
+                    <span class="badge-status <?= e($p['status']) ?>">
+                      <?= ucfirst(e($p['status'])) ?>
+                    </span>
+                  </label>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+          </div>
+
+          <!-- STEP 4: Live Estimated Price Summary -->
           <div class="pricing-preview-box mb-4">
             <div class="d-flex align-items-center justify-content-between mb-1">
-              <span class="small text-muted">Applicable Rate:</span>
-              <span class="fw-semibold text-dark" id="liveUnitRateDisplay">₹2.00 / page</span>
+              <span class="small text-muted">Configured Rate:</span>
+              <span class="fw-semibold text-dark" id="liveUnitRateDisplay">Calculating...</span>
             </div>
             <div class="d-flex align-items-center justify-content-between">
-              <span class="fw-bold text-dark">Estimated Total:</span>
-              <span class="fw-bold fs-4 text-primary" id="livePriceDisplay">₹2.00</span>
+              <div>
+                <span class="fw-bold text-dark d-block">Estimated Total:</span>
+                <span class="small text-muted" id="priceNote">Server will verify exact page count on submit</span>
+              </div>
+              <span class="fw-bold fs-4 text-primary" id="livePriceDisplay">₹0.00</span>
             </div>
           </div>
 
-          <!-- Submit Button -->
-          <button type="submit" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" disabled>
-            <i class="bi bi-printer-fill me-2"></i> Submit & Proceed to Print
+          <!-- Submit Order Button -->
+          <button type="submit" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" <?= (!$hasOnlinePrinter || empty($shopPricing)) ? 'disabled' : 'disabled' ?>>
+            <i class="bi bi-arrow-right-circle-fill me-2"></i> Review & Prepare Print Order
           </button>
 
         </form>
@@ -272,11 +415,11 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
       </div>
     </div>
 
-    <!-- Shop Footer Card -->
+    <!-- Shop Information Footer -->
     <div class="text-center text-muted small">
       <div class="fw-semibold text-dark"><?= e($shop['name']) ?></div>
-      <div><i class="bi bi-geo-alt me-1"></i><?= e($shop['address'] ?? 'Shop Center') ?> • <i class="bi bi-telephone me-1"></i><?= e($shop['phone']) ?></div>
-      <div class="mt-2 text-secondary">&copy; <?= date('Y') ?> PrimePrint Cloud</div>
+      <div><i class="bi bi-geo-alt me-1"></i><?= e($shop['address'] ?? 'Counter') ?> • <i class="bi bi-telephone me-1"></i><?= e($shop['phone']) ?></div>
+      <div class="mt-2 text-secondary">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
     </div>
 
   </main>

@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS `pricing` (
 -- 6. Print Jobs Table
 CREATE TABLE IF NOT EXISTS `print_jobs` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `public_token` VARCHAR(64) NOT NULL UNIQUE,
   `shop_id` INT UNSIGNED NOT NULL,
   `printer_id` INT UNSIGNED NULL,
   `file_name` VARCHAR(255) NOT NULL,
@@ -103,6 +104,7 @@ CREATE TABLE IF NOT EXISTS `print_jobs` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `printed_at` DATETIME NULL,
+  INDEX `idx_jobs_token` (`public_token`),
   INDEX `idx_jobs_shop` (`shop_id`),
   INDEX `idx_jobs_printer` (`printer_id`),
   INDEX `idx_jobs_status` (`status`),

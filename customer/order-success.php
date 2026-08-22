@@ -1,35 +1,53 @@
 <?php
 /**
- * PrimePrint Customer - Order Confirmation & Status Overview
+ * PrimePrint Customer - Order Status & Payment Receipt Confirmation
  */
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/helpers.php';
 
+$token = trim($_GET['token'] ?? '');
 $jobId = (int)($_GET['id'] ?? 0);
 
-if ($jobId <= 0) {
+if (empty($token) && $jobId <= 0) {
     header("Location: " . APP_URL . "/login.php");
     exit;
 }
 
 $db = getDBConnection();
-$stmt = $db->prepare("
-    SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone 
-    FROM print_jobs j 
-    INNER JOIN shops s ON j.shop_id = s.id 
-    WHERE j.id = :id 
-    LIMIT 1
-");
-$stmt->execute([':id' => $jobId]);
+if (!empty($token)) {
+    $stmt = $db->prepare("
+        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone 
+        FROM print_jobs j 
+        INNER JOIN shops s ON j.shop_id = s.id 
+        WHERE j.public_token = :token 
+        LIMIT 1
+    ");
+    $stmt->execute([':token' => $token]);
+} else {
+    $stmt = $db->prepare("
+        SELECT j.*, s.name AS shop_name, s.slug AS shop_slug, s.phone AS shop_phone 
+        FROM print_jobs j 
+        INNER JOIN shops s ON j.shop_id = s.id 
+        WHERE j.id = :id 
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => $jobId]);
+}
 $job = $stmt->fetch();
 
 if (!$job) {
-    die("Error: Print job order #{$jobId} not found.");
+    die("Error: Print job order not found.");
 }
 
-$pageTitle = 'Order Confirmed #' . $job['id'] . ' — ' . APP_NAME;
+// If payment is still pending, route to review page
+if ($job['payment_status'] !== 'completed' && !empty($job['public_token'])) {
+    header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($job['public_token']));
+    exit;
+}
+
+$pageTitle = 'Order Receipt #' . $job['public_token'] . ' — ' . APP_NAME;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,13 +70,13 @@ $pageTitle = 'Order Confirmed #' . $job['id'] . ' — ' . APP_NAME;
         <i class="bi bi-check-lg"></i>
       </div>
 
-      <h4 class="fw-bold text-dark mb-1">Document Received!</h4>
-      <p class="text-muted small mb-3">Your print request has been queued at <strong><?= e($job['shop_name']) ?></strong></p>
+      <h4 class="fw-bold text-dark mb-1">Payment Confirmed & Spooling!</h4>
+      <p class="text-muted small mb-3">Your print request has been paid and sent to <strong><?= e($job['shop_name']) ?></strong></p>
 
       <!-- Order ID Badge -->
       <div class="p-3 bg-light rounded-3 border mb-4">
-        <span class="text-muted small d-block text-uppercase fw-semibold">Your Print Job Token ID</span>
-        <span class="fw-mono fw-bold fs-2 text-primary">#<?= $job['id'] ?></span>
+        <span class="text-muted small d-block text-uppercase fw-semibold">Public Order Token</span>
+        <span class="fw-mono fw-bold fs-2 text-primary"><?= e($job['public_token'] ?? '#' . $job['id']) ?></span>
       </div>
 
       <!-- Job Summary Details List -->
@@ -80,15 +98,9 @@ $pageTitle = 'Order Confirmed #' . $job['id'] . ' — ' . APP_NAME;
           <span class="badge-status <?= e($job['status']) ?>"><?= e($job['status']) ?></span>
         </div>
         <div class="list-group-item d-flex justify-content-between px-0 py-2">
-          <span class="fw-bold text-dark">Calculated Total:</span>
+          <span class="fw-bold text-dark">Amount Paid:</span>
           <span class="fw-bold fs-5 text-success"><?= format_currency($job['amount']) ?></span>
         </div>
-      </div>
-
-      <!-- Next Steps Instruction Card -->
-      <div class="alert alert-info py-2 px-3 small text-start mb-4">
-        <i class="bi bi-info-circle-fill me-1"></i>
-        <strong>Next Step:</strong> Please show Job Token <strong>#<?= $job['id'] ?></strong> to the counter operator at <?= e($job['shop_name']) ?> to complete payment and collect your physical prints.
       </div>
 
       <div class="d-grid gap-2">
@@ -101,7 +113,7 @@ $pageTitle = 'Order Confirmed #' . $job['id'] . ' — ' . APP_NAME;
 
     <div class="text-center text-muted small">
       <div>Need assistance? Call <?= e($job['shop_name']) ?>: <strong><?= e($job['shop_phone']) ?></strong></div>
-      <div class="mt-1">&copy; <?= date('Y') ?> PrimePrint Cloud</div>
+      <div class="mt-1">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
     </div>
 
   </div>

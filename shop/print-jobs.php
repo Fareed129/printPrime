@@ -141,7 +141,12 @@ require_once __DIR__ . '/../includes/header.php';
           <?php else: ?>
             <?php foreach ($jobs as $j): ?>
               <tr>
-                <td><span class="fw-mono fw-bold text-dark">#<?= $j['id'] ?></span></td>
+                <td>
+                  <span class="fw-mono fw-bold text-dark">#<?= $j['id'] ?></span>
+                  <?php if (!empty($j['public_token'])): ?>
+                    <div class="small text-primary font-monospace" style="font-size: 0.72rem;"><?= e($j['public_token']) ?></div>
+                  <?php endif; ?>
+                </td>
                 <td class="text-truncate" style="max-width: 180px;" title="<?= e($j['file_name']) ?>">
                   <i class="bi <?= str_contains($j['file_type'], 'pdf') ? 'bi-file-earmark-pdf text-danger' : 'bi-file-earmark-image text-primary' ?> me-1"></i>
                   <?= e($j['file_name']) ?>
