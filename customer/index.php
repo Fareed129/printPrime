@@ -237,7 +237,7 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
   <title><?= e($pageTitle) ?></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/style.css">
+  <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
   <script>
     // Embed shop pricing rules for live browser calculations
     window.SHOP_PRICING_TABLE = <?= json_encode($shopPricing) ?>;
@@ -453,6 +453,6 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="<?= APP_URL ?>/assets/js/app.js"></script>
+  <script src="<?= asset_url('assets/js/app.js') ?>"></script>
 </body>
 </html>

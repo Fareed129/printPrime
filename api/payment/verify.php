@@ -90,7 +90,7 @@ try {
             'success'      => true,
             'is_paid'      => true,
             'message'      => 'This order has already been paid and queued.',
-            'redirect_url' => APP_URL . '/customer/order-success.php?token=' . urlencode($token)
+            'redirect_url' => '/customer/order-success.php?token=' . urlencode($token)
         ]);
         exit;
     }
@@ -160,7 +160,7 @@ try {
         'success'      => true,
         'status'       => $isCapturedOnApi ? 'captured' : 'verifying',
         'message'      => 'Payment signature verified. Confirming settlement...',
-        'redirect_url' => APP_URL . '/customer/order-success.php?token=' . urlencode($token)
+        'redirect_url' => '/customer/order-success.php?token=' . urlencode($token)
     ]);
 
 } catch (Exception $e) {

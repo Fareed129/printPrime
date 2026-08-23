@@ -52,7 +52,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
   <title><?= e($pageTitle) ?></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="<?= APP_URL ?>/assets/css/style.css">
+  <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
   <!-- Razorpay Official Checkout SDK -->
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
@@ -187,7 +187,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 
       try {
         // Step 1: Create or Reuse Razorpay Order on Server
-        const orderResponse = await fetch('<?= APP_URL ?>/api/payment/create-order.php', {
+        const orderResponse = await fetch('/api/payment/create-order.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: orderToken })
@@ -222,7 +222,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 
             try {
               // Step 3: Verify Signature Server-Side
-              const verifyResponse = await fetch('<?= APP_URL ?>/api/payment/verify.php', {
+              const verifyResponse = await fetch('/api/payment/verify.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

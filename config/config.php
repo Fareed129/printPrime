@@ -7,10 +7,21 @@
 define('APP_NAME', 'PrimePrint');
 define('APP_VERSION', '1.0.0-phase3');
 
-// Dynamic base URL detection
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
-define('APP_URL', $protocol . $host);
+// Dynamic base URL detection (Reverse Proxy & Cloudflare Tunnel aware)
+$isHttps = (
+    (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+    (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443) ||
+    (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+    (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') ||
+    (!empty($_SERVER['HTTP_CF_VISITOR']) && str_contains($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"'))
+);
+
+$protocol = $isHttps ? "https://" : "http://";
+$host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
+if (str_contains($host, ',')) {
+    $host = trim(explode(',', $host)[0]);
+}
+define('APP_URL', rtrim($protocol . $host, '/'));
 
 // Load .env configuration if present
 $envFile = __DIR__ . '/../.env';

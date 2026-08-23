@@ -13,6 +13,13 @@ function e(?string $string): string {
 }
 
 /**
+ * Generate same-origin root-relative asset URL (safe across localhost, reverse proxies, and production domains)
+ */
+function asset_url(string $path): string {
+    return '/' . ltrim($path, '/');
+}
+
+/**
  * Generate a URL-friendly slug from string
  */
 function slugify(string $text): string {

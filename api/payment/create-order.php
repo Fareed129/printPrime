@@ -61,7 +61,7 @@ try {
         echo json_encode([
             'success'      => false,
             'is_paid'      => true,
-            'redirect_url' => APP_URL . '/customer/order-success.php?token=' . urlencode($token),
+            'redirect_url' => '/customer/order-success.php?token=' . urlencode($token),
             'message'      => 'This order has already been paid and queued.'
         ]);
         exit;
