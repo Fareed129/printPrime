@@ -21,9 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // 1. Read Raw Body and Signature Header
 $rawBody = file_get_contents('php://input');
 $signature = $_SERVER['HTTP_X_RAZORPAY_SIGNATURE'] ?? '';
+$eventId = $_SERVER['HTTP_X_RAZORPAY_EVENT_ID'] ?? '';
 
 if (empty($rawBody) || empty($signature)) {
-    log_payment_event('webhook_missing_signature_or_body', [], 'WARNING');
+    log_payment_event('webhook_missing_signature_or_body', [
+        'event_id'         => $eventId,
+        'has_body'         => !empty($rawBody),
+        'has_sig'          => !empty($signature)
+    ], 'WARNING');
     http_response_code(400);
     echo json_encode(['error' => 'Missing webhook payload or signature header.']);
     exit;
@@ -32,8 +37,17 @@ if (empty($rawBody) || empty($signature)) {
 // 2. Cryptographic Webhook Signature Verification
 $isValid = razorpay_verify_webhook_signature($rawBody, $signature);
 if (!$isValid) {
+    $parsedPreview = json_decode($rawBody, true);
+    $eventName = is_array($parsedPreview) ? ($parsedPreview['event'] ?? 'unknown') : 'unparseable';
+    $isSecretSet = !empty(RAZORPAY_WEBHOOK_SECRET) && RAZORPAY_WEBHOOK_SECRET !== 'sampleWebhookSecret123456';
+
     log_payment_event('webhook_invalid_signature', [
-        'received_sig' => substr($signature, 0, 10) . '...'
+        'event_id'          => $eventId,
+        'event_name'        => $eventName,
+        'body_len'          => strlen($rawBody),
+        'sig_len'           => strlen($signature),
+        'secret_configured' => $isSecretSet ? 'YES' : 'NO',
+        'secret_length'     => strlen(RAZORPAY_WEBHOOK_SECRET)
     ], 'ERROR');
     http_response_code(400);
     echo json_encode(['error' => 'Invalid webhook signature.']);

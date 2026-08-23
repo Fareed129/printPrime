@@ -165,7 +165,16 @@ function razorpay_verify_payment_signature(string $orderId, string $paymentId, s
  */
 function razorpay_verify_webhook_signature(string $rawBody, string $signature): bool {
     $webhookSecret = RAZORPAY_WEBHOOK_SECRET;
+    $isConfigured = !empty($webhookSecret) && $webhookSecret !== 'sampleWebhookSecret123456';
+
     if (empty($rawBody) || empty($signature) || empty($webhookSecret)) {
+        log_payment_event('webhook_signature_verification', [
+            'is_valid'            => false,
+            'secret_configured'   => $isConfigured ? 'YES' : 'NO',
+            'secret_length'       => strlen($webhookSecret),
+            'received_sig_length' => strlen($signature),
+            'body_len'            => strlen($rawBody)
+        ], 'WARNING');
         return false;
     }
 
@@ -173,8 +182,11 @@ function razorpay_verify_webhook_signature(string $rawBody, string $signature): 
     $isValid = hash_equals($expectedSignature, $signature);
 
     log_payment_event('webhook_signature_verification', [
-        'is_valid' => $isValid,
-        'body_len' => strlen($rawBody)
+        'is_valid'            => $isValid,
+        'secret_configured'   => $isConfigured ? 'YES' : 'NO',
+        'secret_length'       => strlen($webhookSecret),
+        'received_sig_length' => strlen($signature),
+        'body_len'            => strlen($rawBody)
     ], $isValid ? 'INFO' : 'WARNING');
 
     return $isValid;

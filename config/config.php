@@ -34,8 +34,8 @@ if (file_exists($envFile) && is_readable($envFile)) {
             [$k, $v] = explode('=', $line, 2);
             $k = trim($k);
             $v = trim($v);
-            if (!isset($_ENV[$k])) $_ENV[$k] = $v;
-            if (!isset($_SERVER[$k])) $_SERVER[$k] = $v;
+            $_ENV[$k] = $v;
+            $_SERVER[$k] = $v;
             putenv("{$k}={$v}");
         }
     }
