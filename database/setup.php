@@ -26,13 +26,27 @@ if (!$isCli) {
 }
 
 try {
-    // 1. Connect without selecting database to create database if not exists
-    $dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";charset=" . DB_CHARSET;
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
-    outputMsg("Connected to MySQL Server successfully.");
+    // 1. Connect to the designated database directly
+    $dbDsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+    try {
+        $dbPdo = new PDO($dbDsn, DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+        outputMsg("Connected to database `" . DB_NAME . "` successfully.");
+    } catch (PDOException $e) {
+        // If database does not exist, attempt creation (local dev mode)
+        $rootDsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";charset=" . DB_CHARSET;
+        $rootPdo = new PDO($rootDsn, DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+        ]);
+        $rootPdo->exec("CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        $dbPdo = new PDO($dbDsn, DB_USER, DB_PASS, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+        ]);
+        outputMsg("Created and connected to database `" . DB_NAME . "` successfully.");
+    }
 
     // 2. Read and execute schema.sql
     $schemaFile = __DIR__ . '/schema.sql';
@@ -40,15 +54,9 @@ try {
         throw new Exception("Schema file not found at: {$schemaFile}");
     }
     $schemaSql = file_get_contents($schemaFile);
-    $pdo->exec($schemaSql);
-    outputMsg("Database `primeprint_db` and tables created successfully.");
+    $dbPdo->exec($schemaSql);
+    outputMsg("Tables created/verified successfully.");
 
-    // 3. Connect to the specific database
-    $dbDsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
-    $dbPdo = new PDO($dbDsn, DB_USER, DB_PASS, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-    ]);
 
     // 3b. Migration Check: Ensure public_token exists in print_jobs
     $colCheck = $dbPdo->query("SHOW COLUMNS FROM `print_jobs` LIKE 'public_token'")->fetch();

@@ -12,17 +12,28 @@ locales/
 *.zip
 *.tar
 *.7z
-*.log
 
-# Customer Uploads (Keep folder & security guards, ignore uploaded files)
+# Runtime Logs (Keep folder & security guard, ignore log contents)
+logs/*
+!logs/.htaccess
+!logs/index.php
+
+# Customer Uploads (Keep folder & security guard, ignore uploaded documents)
 uploads/*
 !uploads/.htaccess
 !uploads/index.php
 
-# Environment & OS files
+# Environment & Sensitive Credentials
 .env
+.env.backup
+.env.local
+.env.production
+
+# OS & Editor files
 .DS_Store
 Thumbs.db
 *.tmp
+*.swp
 .vscode/
 .idea/
+

@@ -1,7 +1,17 @@
-# PrimePrint Apache Configuration & URL Rewriting
+# ===================================================
+# PrimePrint Apache Production Configuration
+# Hostinger Shared Hosting & Local Apache Compatible
+# ===================================================
+
+# Disable Directory Browsing
+Options -Indexes -ExecCGI
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
+
+    # Route /health to health.php
+    RewriteRule ^health/?$ health.php [L,QSA]
 
     # Route /p/{shop-slug} to p.php?slug={shop-slug}
     RewriteRule ^p/([a-zA-Z0-9_-]+)/?$ p.php?slug=$1 [L,QSA]
@@ -15,13 +25,38 @@
     # Route /api/agent/jobs/{id}/status to api/agent/job-status.php?id=$1
     RewriteRule ^api/agent/jobs/([0-9]+)/status/?$ api/agent/job-status.php?id=$1 [L,QSA]
 
+    # Protect sensitive directories from direct web browsing
+    RewriteRule ^(config|database|logs)/ - [F,L]
+
     # Extensionless PHP scripts support
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME}\.php -f
     RewriteRule ^(.*)$ $1.php [L,QSA]
 </IfModule>
 
-# Security Headers
+# Protect Sensitive Configuration, SQL, Logs, and Metadata Files
+<FilesMatch "(^\.env|\.sql$|\.log$|\.md$|package\.json|router\.php|composer\.lock)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block all hidden files (starting with dot)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Security HTTP Headers
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
     Header set X-XSS-Protection "1; mode=block"
@@ -29,10 +64,3 @@
     Header set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
-# Block access to hidden files and sensitive directories
-<FilesMatch "^\.">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-Options -Indexes

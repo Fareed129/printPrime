@@ -21,9 +21,15 @@ function getDBConnection(): PDO {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
         } catch (PDOException $e) {
             error_log("Database Connection Error: " . $e->getMessage());
-            die("Database Connection Failed. Please ensure MySQL is running and setup has been executed.");
+            if (defined('APP_ENV') && APP_ENV === 'production') {
+                http_response_code(500);
+                die("Database service temporarily unavailable. Please contact the administrator.");
+            } else {
+                die("Database Connection Failed: " . htmlspecialchars($e->getMessage()));
+            }
         }
     }
 
     return $pdo;
 }
+

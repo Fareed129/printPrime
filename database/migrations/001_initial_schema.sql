@@ -1,9 +1,6 @@
--- PrimePrint Database Schema
--- Multi-Tenant Printing Shop SaaS Foundation
--- Compatible with Hostinger Shared Hosting & Local MySQL
+-- Migration 001: Initial Core Schema (Shops, Users, Printers, Print Agents, Print Jobs, Invoices)
+-- Safe & idempotent for both new and existing databases
 
-
--- 1. Shops Table
 CREATE TABLE IF NOT EXISTS `shops` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(150) NOT NULL,
@@ -19,7 +16,6 @@ CREATE TABLE IF NOT EXISTS `shops` (
   INDEX `idx_shop_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 2. Users Table (Super Admin & Shop Users)
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
@@ -36,7 +32,6 @@ CREATE TABLE IF NOT EXISTS `users` (
   CONSTRAINT `fk_users_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 3. Printers Table
 CREATE TABLE IF NOT EXISTS `printers` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `shop_id` INT UNSIGNED NOT NULL,
@@ -50,7 +45,6 @@ CREATE TABLE IF NOT EXISTS `printers` (
   CONSTRAINT `fk_printers_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 4. Print Agents Table
 CREATE TABLE IF NOT EXISTS `print_agents` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `shop_id` INT UNSIGNED NOT NULL,
@@ -65,23 +59,6 @@ CREATE TABLE IF NOT EXISTS `print_agents` (
   CONSTRAINT `fk_agents_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 5. Pricing Table
-CREATE TABLE IF NOT EXISTS `pricing` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `shop_id` INT UNSIGNED NOT NULL,
-  `paper_size` ENUM('A4', 'A3', 'Legal') NOT NULL DEFAULT 'A4',
-  `color_mode` ENUM('BW', 'COLOR') NOT NULL DEFAULT 'BW',
-  `side_mode` ENUM('single', 'double') NOT NULL DEFAULT 'single',
-  `price_per_page` DECIMAL(8, 2) NOT NULL DEFAULT '2.00',
-  `active` TINYINT(1) NOT NULL DEFAULT 1,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY `uniq_shop_pricing_tier` (`shop_id`, `paper_size`, `color_mode`, `side_mode`),
-  INDEX `idx_pricing_shop` (`shop_id`),
-  CONSTRAINT `fk_pricing_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 6. Print Jobs Table
 CREATE TABLE IF NOT EXISTS `print_jobs` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `public_token` VARCHAR(64) NOT NULL UNIQUE,
@@ -112,29 +89,6 @@ CREATE TABLE IF NOT EXISTS `print_jobs` (
   CONSTRAINT `fk_jobs_printer_id` FOREIGN KEY (`printer_id`) REFERENCES `printers` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 7. Payments Table
-CREATE TABLE IF NOT EXISTS `payments` (
-  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  `job_id` INT UNSIGNED NOT NULL,
-  `shop_id` INT UNSIGNED NOT NULL,
-  `razorpay_order_id` VARCHAR(100) NOT NULL,
-  `razorpay_payment_id` VARCHAR(100) NULL,
-  `amount` DECIMAL(10, 2) NOT NULL,
-  `status` ENUM('created', 'captured', 'failed') NOT NULL DEFAULT 'created',
-  `method` VARCHAR(50) NULL,
-  `failure_reason` TEXT NULL,
-  `captured_at` DATETIME NULL,
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  INDEX `idx_payments_job` (`job_id`),
-  INDEX `idx_payments_shop` (`shop_id`),
-  INDEX `idx_payments_order` (`razorpay_order_id`),
-  INDEX `idx_payments_payment` (`razorpay_payment_id`),
-  CONSTRAINT `fk_payments_job_id` FOREIGN KEY (`job_id`) REFERENCES `print_jobs` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_payments_shop_id` FOREIGN KEY (`shop_id`) REFERENCES `shops` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- 8. Invoices Table
 CREATE TABLE IF NOT EXISTS `invoices` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `job_id` INT UNSIGNED NOT NULL,
