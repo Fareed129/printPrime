@@ -1,9 +1,9 @@
--- PrimePrint Seed Data (Development Environment)
+-- PrimePrint Seed Data (Initial Configuration)
 -- Super Admin: admin@primeprint.local / ChangeMe123!
 -- Demo Shop: ABC Digital Printing (slug: abc-digital-printing)
 -- Shop User: shop@abcprinting.local / ChangeMe123!
 
-USE `primeprint_db`;
+
 
 -- 1. Insert Demo Shop
 INSERT INTO `shops` (`id`, `name`, `slug`, `owner_name`, `phone`, `email`, `address`, `status`)

@@ -29,6 +29,14 @@ uploads/*
 .env.local
 .env.production
 
+# Deployment Tools & Credentials
+.deploy.env
+.deploy.env.*
+!.deploy.env.example
+.deploy-state.json
+deployments/
+
+
 # OS & Editor files
 .DS_Store
 Thumbs.db
@@ -36,4 +44,5 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
 
