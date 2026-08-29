@@ -63,7 +63,7 @@ $stmt->execute([
     ':id'           => $jobId
 ]);
 
-// If printed, automatically create Invoice record if not already generated
+// If printed, automatically create Invoice record and clean up customer uploaded document for privacy
 if ($newStatus === 'PRINTED') {
     $invoiceNumber = 'INV-' . date('Y') . '-' . str_pad($jobId, 6, '0', STR_PAD_LEFT);
     $stmt = $db->prepare("
@@ -77,7 +77,13 @@ if ($newStatus === 'PRINTED') {
         ':inv_num'  => $invoiceNumber,
         ':amount'   => $job['amount']
     ]);
+
+    // Customer Document Privacy: Permanently unlink uploaded file once printed
+    if (!empty($job['file_path']) && file_exists($job['file_path'])) {
+        @unlink($job['file_path']);
+    }
 }
+
 
 echo json_encode([
     'success' => true,

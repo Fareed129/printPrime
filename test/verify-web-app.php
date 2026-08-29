@@ -497,6 +497,70 @@ assertTest("Agent API: GET /api/agent/jobs returns eligible QUEUED paid print jo
     $res['code'] === 200 && $hasPaidQueuedJob && !$hasUnpaidJob
 );
 
+// --------------------------------------------------
+// SECTION 5: Phase 4B Automatic Cloud Spooling & Status
+// --------------------------------------------------
+
+// Pick the paid queued job
+$targetJob = null;
+foreach ($jobsList as $j) {
+    if ($j['status'] === 'QUEUED') {
+        $targetJob = $j;
+        break;
+    }
+}
+
+if ($targetJob) {
+    $jobId = (int)$targetJob['id'];
+
+    // 1. Transition to DOWNLOADING
+    $resDl = curlReq("{$baseUrl}/api/agent/job-status.php?id={$jobId}", 'POST', json_encode([
+        'status' => 'DOWNLOADING'
+    ]), '', [
+        "X-Agent-Token: {$agentToken}",
+        'Content-Type: application/json'
+    ]);
+    $stmt = $pdo->prepare("SELECT status FROM print_jobs WHERE id = :id");
+    $stmt->execute([':id' => $jobId]);
+    $dlStatus = $stmt->fetchColumn();
+    assertTest("Phase 4B: Status transitions to DOWNLOADING", $resDl['code'] === 200 && $dlStatus === 'DOWNLOADING');
+
+    // 2. Transition to PRINTING
+    $resPr = curlReq("{$baseUrl}/api/agent/job-status.php?id={$jobId}", 'POST', json_encode([
+        'status' => 'PRINTING'
+    ]), '', [
+        "X-Agent-Token: {$agentToken}",
+        'Content-Type: application/json'
+    ]);
+    $stmt->execute([':id' => $jobId]);
+    $prStatus = $stmt->fetchColumn();
+    assertTest("Phase 4B: Status transitions to PRINTING", $resPr['code'] === 200 && $prStatus === 'PRINTING');
+
+    // 3. Transition to PRINTED -> Invoice generated & document unlinked
+    $resDone = curlReq("{$baseUrl}/api/agent/job-status.php?id={$jobId}", 'POST', json_encode([
+        'status' => 'PRINTED'
+    ]), '', [
+        "X-Agent-Token: {$agentToken}",
+        'Content-Type: application/json'
+    ]);
+    $stmt = $pdo->prepare("SELECT status, printed_at FROM print_jobs WHERE id = :id");
+    $stmt->execute([':id' => $jobId]);
+    $doneJob = $stmt->fetch();
+
+    $stmt = $pdo->prepare("SELECT * FROM invoices WHERE job_id = :job_id");
+    $stmt->execute([':job_id' => $jobId]);
+    $invoice = $stmt->fetch();
+
+    assertTest("Phase 4B: Status transitions to PRINTED with timestamp & generates Invoice", 
+        $resDone['code'] === 200 && 
+        $doneJob['status'] === 'PRINTED' && 
+        !empty($doneJob['printed_at']) && 
+        !empty($invoice) && 
+        str_starts_with($invoice['invoice_number'], 'INV-')
+    );
+}
+
 echo PHP_EOL . "==================================================" . PHP_EOL;
 echo "🎉 ALL HARDENED MASTER TESTS PASSED CLEANLY!" . PHP_EOL;
 echo "==================================================" . PHP_EOL;
+
