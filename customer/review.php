@@ -215,8 +215,14 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
           name: orderData.shop_name || 'PrimePrint',
           description: 'Print Order #' + orderData.token,
           order_id: orderData.order_id,
+          prefill: {
+            name: 'Customer',
+            email: 'customer@primeprint.local',
+            contact: '9876543210'
+          },
           theme: { color: '#2563eb' },
           handler: async function (response) {
+
             btnPayNow.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Payment...';
             setAlert('info', 'Verifying transaction signature...');
 
