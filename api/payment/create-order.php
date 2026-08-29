@@ -93,7 +93,8 @@ try {
         $stmt->execute([':amt' => $authoritativeAmount, ':id' => $job['id']]);
     }
 
-    // 3. Prevent Duplicate Razorpay Orders: Check for existing pending order
+    // 3. Prevent Duplicate Razorpay Orders: Check for existing pending order unless fresh requested
+    $forceNew = !empty($inputData['force_new']) || !empty($inputData['fresh']);
     $stmt = $db->prepare("
         SELECT razorpay_order_id, amount 
         FROM payments 
@@ -105,6 +106,7 @@ try {
 
     $razorpayOrderId = '';
     if (
+        !$forceNew &&
         $existingPayment && 
         (float)$existingPayment['amount'] === $authoritativeAmount && 
         !empty($existingPayment['razorpay_order_id']) && 
@@ -112,6 +114,7 @@ try {
     ) {
         $razorpayOrderId = $existingPayment['razorpay_order_id'];
     } else {
+
         // Create new Razorpay order
         $orderRes = razorpay_create_order($amountPaise, 'PP_' . $job['id'], [
             'public_token' => $job['public_token'],

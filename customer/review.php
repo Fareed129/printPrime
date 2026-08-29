@@ -180,6 +180,8 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
       }
     }
 
+    let retryCount = 0;
+
     btnPayNow.addEventListener('click', async () => {
       btnPayNow.disabled = true;
       const originalBtnHtml = btnPayNow.innerHTML;
@@ -190,7 +192,10 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
         const orderResponse = await fetch('/api/payment/create-order.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: orderToken })
+          body: JSON.stringify({
+            token: orderToken,
+            force_new: (retryCount > 0)
+          })
         });
 
         const orderData = await orderResponse.json();
@@ -206,6 +211,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
           btnPayNow.innerHTML = originalBtnHtml;
           return;
         }
+
 
         // Step 2: Open Razorpay Checkout Modal
         const options = {
@@ -256,6 +262,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
           },
           modal: {
             ondismiss: function () {
+              retryCount++;
               setAlert('warning', '<strong>Payment Cancelled</strong><br>Checkout was closed. You can retry payment whenever you are ready.', true);
               btnPayNow.disabled = false;
               btnPayNow.innerHTML = originalBtnHtml;
@@ -271,6 +278,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 
         const rzp = new Razorpay(options);
         rzp.on('payment.failed', function (resp) {
+          retryCount++;
           setAlert('danger', `Payment failed: ${resp.error.description || 'Transaction declined'}`);
           btnPayNow.disabled = false;
           btnPayNow.innerHTML = originalBtnHtml;
@@ -279,12 +287,14 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
         rzp.open();
 
       } catch (err) {
+        retryCount++;
         setAlert('danger', 'Unable to initiate payment gateway connection. Please try again.');
         btnPayNow.disabled = false;
         btnPayNow.innerHTML = originalBtnHtml;
       }
     });
   </script>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
