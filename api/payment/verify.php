@@ -33,25 +33,17 @@ if (empty($token) || empty($paymentId) || empty($orderId) || empty($signature)) 
     exit;
 }
 
-// 1. Cryptographic Signature Verification
-$isValidSignature = razorpay_verify_payment_signature($orderId, $paymentId, $signature);
-if (!$isValidSignature) {
-    log_payment_event('client_payment_signature_failed', [
-        'public_token' => $token,
-        'order_id'     => $orderId,
-        'payment_id'   => $paymentId
-    ], 'WARNING');
-
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Payment verification failed: Invalid digital signature.']);
-    exit;
-}
-
 try {
     $db = getDBConnection();
 
-    // 2. Validate Print Job Exists
-    $stmt = $db->prepare("SELECT * FROM print_jobs WHERE public_token = :token LIMIT 1");
+    // 1. Validate Print Job & Shop Exists
+    $stmt = $db->prepare("
+        SELECT j.*, s.razorpay_key_secret AS shop_razorpay_key_secret 
+        FROM print_jobs j 
+        INNER JOIN shops s ON j.shop_id = s.id 
+        WHERE j.public_token = :token 
+        LIMIT 1
+    ");
     $stmt->execute([':token' => $token]);
     $job = $stmt->fetch();
 
@@ -60,6 +52,23 @@ try {
         echo json_encode(['success' => false, 'error' => 'Order not found.']);
         exit;
     }
+
+    // 2. Cryptographic Signature Verification (Per-Shop Secret or Platform Default)
+    $activeKeySecret = !empty($job['shop_razorpay_key_secret']) ? trim($job['shop_razorpay_key_secret']) : RAZORPAY_KEY_SECRET;
+    $isValidSignature = razorpay_verify_payment_signature($orderId, $paymentId, $signature, $activeKeySecret);
+    if (!$isValidSignature) {
+        log_payment_event('client_payment_signature_failed', [
+            'public_token' => $token,
+            'order_id'     => $orderId,
+            'payment_id'   => $paymentId,
+            'is_shop_custom_gateway' => !empty($job['shop_razorpay_key_secret'])
+        ], 'WARNING');
+
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Payment verification failed: Invalid digital signature.']);
+        exit;
+    }
+
 
     // 3. Strict Payment Record Matching (Must match exact job_id and razorpay_order_id)
     $stmt = $db->prepare("

@@ -96,6 +96,10 @@ $pdo = new PDO("mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NA
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
 ]);
 
+// Reset any test overrides
+$pdo->exec("UPDATE shops SET razorpay_key_id = NULL, razorpay_key_secret = NULL WHERE id = 1");
+
+
 // --------------------------------------------------
 // SECTION 1: Core Authentication & Multi-Tenant Isolation
 // --------------------------------------------------
@@ -627,8 +631,93 @@ $pdo->exec("UPDATE shops SET subscription_status = 'active', subscription_expire
 $resActiveP = curlReq("{$baseUrl}/p/abc-digital-printing");
 assertTest("Phase 5: Restoring active license unlocks customer counter immediately", $resActiveP['code'] === 200);
 
+// ====================================================
+// PHASE 6: PER-SHOP DIRECT RAZORPAY GATEWAY (OPTION A)
+// ====================================================
+// 1. Shop sets custom Razorpay credentials in Shop Settings
+$customShopKeyId = 'rzp_test_customshop123';
+$customShopKeySecret = 'custom_secret_test_987654';
+
+$pdo->exec("
+    UPDATE shops 
+    SET razorpay_key_id = '{$customShopKeyId}', 
+        razorpay_key_secret = '{$customShopKeySecret}' 
+    WHERE id = 1
+");
+
+$stmt = $pdo->prepare("SELECT razorpay_key_id, razorpay_key_secret FROM shops WHERE id = 1");
+$stmt->execute();
+$shopKeys = $stmt->fetch();
+assertTest("Phase 6: Shop saves custom direct Razorpay Key ID and Secret", 
+    $shopKeys['razorpay_key_id'] === $customShopKeyId && 
+    $shopKeys['razorpay_key_secret'] === $customShopKeySecret
+);
+
+// 2. Create Print Job for Shop 1 with Custom Keys
+$customToken = 'tok_custom_gateway_' . bin2hex(random_bytes(6));
+$pdo->exec("
+    INSERT INTO print_jobs (public_token, shop_id, printer_id, file_name, stored_file_name, file_path, file_type, page_count, copies, paper_size, color_mode, side_mode, amount, status, payment_status)
+    VALUES ('{$customToken}', 1, 1, 'receipt.pdf', 'rec.pdf', 'uploads/rec.pdf', 'application/pdf', 1, 1, 'A4', 'BW', 'single', 2.00, 'PAYMENT_PENDING', 'pending')
+");
+$customJobId = (int)$pdo->lastInsertId();
+$customFakeOrderId = 'order_custom_' . bin2hex(random_bytes(6));
+$pdo->exec("
+    INSERT INTO payments (job_id, shop_id, razorpay_order_id, amount, status)
+    VALUES ({$customJobId}, 1, '{$customFakeOrderId}', 2.00, 'created')
+");
+
+// 3. Client calls create-order.php -> must return the shop's custom key_id to client
+$resCustomOrder = curlReq("{$baseUrl}/api/payment/create-order.php", 'POST', json_encode(['token' => $customToken]), null, ['Content-Type: application/json']);
+$customOrderData = json_decode($resCustomOrder['body'], true);
+assertTest("Phase 6: POST /api/payment/create-order.php dynamically returns Shop's own Razorpay Key ID", 
+    $resCustomOrder['code'] === 200 && 
+    $customOrderData['key_id'] === $customShopKeyId && 
+    $customOrderData['order_id'] === $customFakeOrderId
+);
+
+
+// 4. Verify Payment with Shop's custom signature
+$cOrderId = $customOrderData['order_id'];
+$cPayId = 'pay_custom_' . substr(bin2hex(random_bytes(6)), 0, 10);
+$cSig = hash_hmac('sha256', $cOrderId . '|' . $cPayId, $customShopKeySecret);
+
+$resCustomVerify = curlReq("{$baseUrl}/api/payment/verify.php", 'POST', json_encode([
+    'token'               => $customToken,
+    'razorpay_order_id'   => $cOrderId,
+    'razorpay_payment_id' => $cPayId,
+    'razorpay_signature'  => $cSig
+]), null, ['Content-Type: application/json']);
+$customVerifyData = json_decode($resCustomVerify['body'], true);
+
+$stmt = $pdo->prepare("SELECT razorpay_payment_id FROM payments WHERE job_id = :job_id");
+$stmt->execute([':job_id' => $customJobId]);
+$paymentRecord = $stmt->fetch();
+
+assertTest("Phase 6: POST /api/payment/verify.php verifies signature using Shop's own Key Secret & records payment", 
+    $resCustomVerify['code'] === 200 && 
+    $customVerifyData['success'] === true && 
+    $paymentRecord['razorpay_payment_id'] === $cPayId
+);
+
+
+// 5. Reset shop 1 keys back to null to verify seamless platform default fallback
+$pdo->exec("UPDATE shops SET razorpay_key_id = NULL, razorpay_key_secret = NULL WHERE id = 1");
+$fallbackToken = 'tok_fallback_' . bin2hex(random_bytes(6));
+$pdo->exec("
+    INSERT INTO print_jobs (public_token, shop_id, printer_id, file_name, stored_file_name, file_path, file_type, page_count, copies, paper_size, color_mode, side_mode, amount, status, payment_status)
+    VALUES ('{$fallbackToken}', 1, 1, 'test.pdf', 'test.pdf', 'uploads/test.pdf', 'application/pdf', 1, 1, 'A4', 'BW', 'single', 2.00, 'PAYMENT_PENDING', 'pending')
+");
+$resFallbackOrder = curlReq("{$baseUrl}/api/payment/create-order.php", 'POST', json_encode(['token' => $fallbackToken]), null, ['Content-Type: application/json']);
+$fallbackOrderData = json_decode($resFallbackOrder['body'], true);
+assertTest("Phase 6: Empty shop keys seamlessly fallback to Super Admin platform default gateway", 
+    $resFallbackOrder['code'] === 200 && 
+    $fallbackOrderData['key_id'] === RAZORPAY_KEY_ID
+);
+
+
 echo PHP_EOL . "==================================================" . PHP_EOL;
 echo "🎉 ALL HARDENED MASTER TESTS PASSED CLEANLY!" . PHP_EOL;
 echo "==================================================" . PHP_EOL;
+
 
 

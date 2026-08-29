@@ -36,11 +36,13 @@ function log_payment_event(string $event, array $data = [], string $level = 'INF
  * @param int $amountPaise Amount in paise (e.g. ₹48.00 = 4800 paise)
  * @param string $receipt Internal receipt identifier
  * @param array $notes Optional key-value notes
+ * @param string|null $customKeyId Optional shop-specific Key ID
+ * @param string|null $customKeySecret Optional shop-specific Key Secret
  * @return array Result array with order_id and success status
  */
-function razorpay_create_order(int $amountPaise, string $receipt, array $notes = []): array {
-    $keyId = RAZORPAY_KEY_ID;
-    $keySecret = RAZORPAY_KEY_SECRET;
+function razorpay_create_order(int $amountPaise, string $receipt, array $notes = [], ?string $customKeyId = null, ?string $customKeySecret = null): array {
+    $keyId = !empty($customKeyId) ? $customKeyId : RAZORPAY_KEY_ID;
+    $keySecret = !empty($customKeySecret) ? $customKeySecret : RAZORPAY_KEY_SECRET;
 
     if (empty($keyId) || empty($keySecret) || str_contains($keyId, 'sampleKey')) {
         log_payment_event('razorpay_credentials_missing', [
@@ -48,7 +50,7 @@ function razorpay_create_order(int $amountPaise, string $receipt, array $notes =
         ], 'ERROR');
         return [
             'success' => false,
-            'error'   => 'Razorpay API credentials are not configured or invalid in .env.'
+            'error'   => 'Razorpay API credentials are not configured or invalid.'
         ];
     }
 
@@ -113,9 +115,9 @@ function razorpay_create_order(int $amountPaise, string $receipt, array $notes =
 /**
  * Fetch Payment details from Razorpay API
  */
-function razorpay_fetch_payment(string $paymentId): array|false {
-    $keyId = RAZORPAY_KEY_ID;
-    $keySecret = RAZORPAY_KEY_SECRET;
+function razorpay_fetch_payment(string $paymentId, ?string $customKeyId = null, ?string $customKeySecret = null): array|false {
+    $keyId = !empty($customKeyId) ? $customKeyId : RAZORPAY_KEY_ID;
+    $keySecret = !empty($customKeySecret) ? $customKeySecret : RAZORPAY_KEY_SECRET;
 
     if (empty($paymentId) || empty($keyId) || empty($keySecret) || str_contains($keyId, 'sampleKey')) {
         return false;
@@ -141,8 +143,8 @@ function razorpay_fetch_payment(string $paymentId): array|false {
  * Verify Razorpay Checkout Payment Signature
  * Algorithm: HMAC-SHA256(order_id + "|" + payment_id, key_secret) == signature
  */
-function razorpay_verify_payment_signature(string $orderId, string $paymentId, string $signature): bool {
-    $keySecret = RAZORPAY_KEY_SECRET;
+function razorpay_verify_payment_signature(string $orderId, string $paymentId, string $signature, ?string $customKeySecret = null): bool {
+    $keySecret = !empty($customKeySecret) ? $customKeySecret : RAZORPAY_KEY_SECRET;
     if (empty($orderId) || empty($paymentId) || empty($signature) || empty($keySecret)) {
         return false;
     }
@@ -158,6 +160,7 @@ function razorpay_verify_payment_signature(string $orderId, string $paymentId, s
 
     return $isValid;
 }
+
 
 /**
  * Verify Razorpay Webhook Signature

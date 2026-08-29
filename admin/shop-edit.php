@@ -43,6 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status    = in_array($_POST['status'] ?? '', ['active', 'inactive']) ? $_POST['status'] : 'active';
     $customSlug = trim($_POST['slug'] ?? '');
 
+    $razorpayKeyId     = trim($_POST['razorpay_key_id'] ?? '');
+    $razorpayKeySecret = trim($_POST['razorpay_key_secret'] ?? '');
+
     if (empty($shopName))  $errors[] = 'Shop name is required.';
     if (empty($ownerName)) $errors[] = 'Owner name is required.';
     if (empty($phone))     $errors[] = 'Phone number is required.';
@@ -57,7 +60,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt = $db->prepare("
                 UPDATE shops 
-                SET name = :name, slug = :slug, owner_name = :owner_name, phone = :phone, email = :email, address = :address, status = :status
+                SET name = :name, 
+                    slug = :slug, 
+                    owner_name = :owner_name, 
+                    phone = :phone, 
+                    email = :email, 
+                    address = :address, 
+                    status = :status,
+                    razorpay_key_id = :rzp_key,
+                    razorpay_key_secret = :rzp_secret
                 WHERE id = :id
             ");
             $stmt->execute([
@@ -68,8 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':email'      => $email,
                 ':address'    => $address,
                 ':status'     => $status,
+                ':rzp_key'    => !empty($razorpayKeyId) ? $razorpayKeyId : null,
+                ':rzp_secret' => !empty($razorpayKeySecret) ? $razorpayKeySecret : null,
                 ':id'         => $shopId
             ]);
+
 
             flash_set('success', "Shop '{$shopName}' details updated successfully.");
             header("Location: " . APP_URL . "/admin/shop-view.php?id=" . $shopId);
@@ -155,10 +169,30 @@ require_once __DIR__ . '/../includes/header.php';
         <textarea class="form-control" name="address" rows="3"><?= e($_POST['address'] ?? $shop['address']) ?></textarea>
       </div>
 
+      <hr class="my-4">
+      <h6 class="fw-bold text-dark mb-1"><i class="bi bi-credit-card-2-front-fill text-primary me-2"></i>Direct Shop Razorpay Gateway</h6>
+      <p class="small text-muted mb-3">Optional. If set, customer counter payments go directly to this shop's bank account.</p>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Razorpay Key ID</label>
+          <input type="text" class="form-control font-monospace" name="razorpay_key_id" 
+                 value="<?= e($_POST['razorpay_key_id'] ?? $shop['razorpay_key_id'] ?? '') ?>" 
+                 placeholder="rzp_live_...">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold text-secondary small">Razorpay Key Secret</label>
+          <input type="password" class="form-control font-monospace" name="razorpay_key_secret" 
+                 value="<?= e($_POST['razorpay_key_secret'] ?? $shop['razorpay_key_secret'] ?? '') ?>" 
+                 placeholder="••••••••••••••••">
+        </div>
+      </div>
+
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary px-4 fw-semibold">Save Changes</button>
         <a href="<?= APP_URL ?>/admin/shop-view.php?id=<?= $shopId ?>" class="btn btn-outline-secondary">Cancel</a>
       </div>
+
 
     </form>
 

@@ -36,7 +36,9 @@ try {
 
     // 1. Fetch Print Job & Shop Details
     $stmt = $db->prepare("
-        SELECT j.*, s.name AS shop_name, s.status AS shop_status 
+        SELECT j.*, s.name AS shop_name, s.status AS shop_status,
+               s.razorpay_key_id AS shop_razorpay_key_id,
+               s.razorpay_key_secret AS shop_razorpay_key_secret
         FROM print_jobs j 
         INNER JOIN shops s ON j.shop_id = s.id 
         WHERE j.public_token = :token 
@@ -44,6 +46,7 @@ try {
     ");
     $stmt->execute([':token' => $token]);
     $job = $stmt->fetch();
+
 
     if (!$job) {
         http_response_code(404);
@@ -114,12 +117,15 @@ try {
     ) {
         $razorpayOrderId = $existingPayment['razorpay_order_id'];
     } else {
+        // Determine active gateway credentials (Shop's Own or Platform Default)
+        $activeKeyId = !empty($job['shop_razorpay_key_id']) ? trim($job['shop_razorpay_key_id']) : RAZORPAY_KEY_ID;
+        $activeKeySecret = !empty($job['shop_razorpay_key_secret']) ? trim($job['shop_razorpay_key_secret']) : RAZORPAY_KEY_SECRET;
 
         // Create new Razorpay order
         $orderRes = razorpay_create_order($amountPaise, 'PP_' . $job['id'], [
             'public_token' => $job['public_token'],
             'shop_id'      => (string)$job['shop_id']
-        ]);
+        ], $activeKeyId, $activeKeySecret);
 
         if (!$orderRes['success'] || empty($orderRes['order_id'])) {
             http_response_code(502);
@@ -143,16 +149,19 @@ try {
         ]);
     }
 
+
     log_payment_event('create_order_endpoint_success', [
         'public_token' => $token,
         'order_id'     => $razorpayOrderId,
-        'amount_paise' => $amountPaise
+        'amount_paise' => $amountPaise,
+        'is_shop_custom_gateway' => !empty($job['shop_razorpay_key_id'])
     ]);
 
     // Return safe checkout parameters (NO SECRETS)
+    $activeKeyId = !empty($job['shop_razorpay_key_id']) ? trim($job['shop_razorpay_key_id']) : RAZORPAY_KEY_ID;
     echo json_encode([
         'success'   => true,
-        'key_id'    => RAZORPAY_KEY_ID,
+        'key_id'    => $activeKeyId,
         'order_id'  => $razorpayOrderId,
         'amount'    => $amountPaise,
         'currency'  => 'INR',
@@ -160,6 +169,7 @@ try {
         'token'     => $job['public_token'],
         'job_id'    => (int)$job['id']
     ]);
+
 
 } catch (Exception $e) {
     log_payment_event('create_order_endpoint_exception', ['error' => $e->getMessage()], 'ERROR');
