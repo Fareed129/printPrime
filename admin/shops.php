@@ -34,12 +34,17 @@ $statusFilter = trim($_GET['status'] ?? '');
 
 $sql = "
     SELECT s.*, 
-           (SELECT COUNT(*) FROM print_jobs WHERE shop_id = s.id) AS total_jobs,
-           (SELECT COUNT(*) FROM printers WHERE shop_id = s.id) AS total_printers,
-           (SELECT COUNT(*) FROM print_agents WHERE shop_id = s.id AND status = 'online') AS online_agents
-    FROM shops s 
+           COUNT(DISTINCT p.id) AS total_printers,
+           COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) AS online_agents,
+           COUNT(DISTINCT j.id) AS total_jobs,
+           TIMESTAMPDIFF(DAY, NOW(), s.subscription_expires_at) AS days_left
+    FROM shops s
+    LEFT JOIN printers p ON s.id = p.shop_id
+    LEFT JOIN print_agents a ON s.id = a.shop_id
+    LEFT JOIN print_jobs j ON s.id = j.shop_id
     WHERE 1=1
 ";
+
 $params = [];
 
 if (!empty($search)) {
@@ -109,10 +114,10 @@ require_once __DIR__ . '/../includes/header.php';
             <th>ID</th>
             <th>Shop Details</th>
             <th>Owner & Contact</th>
-            <th>Printers / Agents</th>
-            <th>Total Jobs</th>
+            <th>License / Expiry</th>
+            <th>Hardware</th>
+            <th>Jobs</th>
             <th>Status</th>
-            <th>Created Date</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
@@ -125,7 +130,11 @@ require_once __DIR__ . '/../includes/header.php';
               </td>
             </tr>
           <?php else: ?>
-            <?php foreach ($shops as $s): ?>
+            <?php foreach ($shops as $s): 
+              $days = (int)($s['days_left'] ?? 0);
+              $isExpired = empty($s['subscription_expires_at']) || strtotime($s['subscription_expires_at']) < time();
+              $isExpiring = !$isExpired && $days <= 7;
+            ?>
               <tr>
                 <td><span class="text-muted fw-bold">#<?= $s['id'] ?></span></td>
                 <td>
@@ -139,19 +148,34 @@ require_once __DIR__ . '/../includes/header.php';
                 <td>
                   <div class="fw-semibold text-dark"><?= e($s['owner_name']) ?></div>
                   <div class="small text-muted"><i class="bi bi-telephone me-1"></i><?= e($s['phone']) ?></div>
-                  <div class="small text-muted"><i class="bi bi-envelope me-1"></i><?= e($s['email']) ?></div>
+                </td>
+                <td>
+                  <?php if ($isExpired): ?>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                      <i class="bi bi-x-circle me-1"></i>Expired
+                    </span>
+                  <?php elseif ($isExpiring): ?>
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">
+                      <i class="bi bi-hourglass-split me-1"></i><?= $days ?>d left
+                    </span>
+                  <?php else: ?>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                      <i class="bi bi-check-circle me-1"></i><?= $days ?>d left
+                    </span>
+                  <?php endif; ?>
+                  <div class="small text-muted mt-1"><?= !empty($s['subscription_expires_at']) ? date('d M Y', strtotime($s['subscription_expires_at'])) : 'No Date' ?></div>
                 </td>
                 <td>
                   <span class="badge bg-light text-dark border me-1"><i class="bi bi-printer me-1"></i><?= $s['total_printers'] ?></span>
                   <span class="badge <?= $s['online_agents'] > 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary' ?>">
-                    <i class="bi bi-hdd-network me-1"></i><?= $s['online_agents'] ?> Agent
+                    <i class="bi bi-hdd-network me-1"></i><?= $s['online_agents'] ?>
                   </span>
                 </td>
                 <td class="fw-bold text-dark"><?= $s['total_jobs'] ?></td>
                 <td>
                   <span class="badge-status <?= $s['status'] ?>"><?= ucfirst($s['status']) ?></span>
                 </td>
-                <td class="small text-muted"><?= format_date($s['created_at'], 'd M Y') ?></td>
+
                 <td class="text-end">
                   <div class="btn-group btn-group-sm">
                     <a href="<?= APP_URL ?>/p/<?= e($s['slug']) ?>" target="_blank" class="btn btn-outline-secondary" title="View Customer Upload Page">

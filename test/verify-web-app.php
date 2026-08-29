@@ -560,7 +560,74 @@ if ($targetJob) {
     );
 }
 
+// --------------------------------------------------
+// SECTION 6: Phase 5 SaaS Subscription & Licensing
+// --------------------------------------------------
+
+// 1. Super Admin Subscriptions Panel Loads
+$resSub = curlReq("{$baseUrl}/admin/subscriptions.php", 'GET', null, $sessionCookie);
+assertTest("Phase 5: Super Admin Subscriptions & Plans panel loads", $resSub['code'] === 200 && str_contains($resSub['body'], 'SaaS Subscriptions & Shop Licenses'));
+
+
+// 2. Shop Portal License Center Loads
+$resShopSub = curlReq("{$baseUrl}/shop/subscription.php", 'GET', null, $shopCookie);
+assertTest("Phase 5: Shop Owner License Center loads", $resShopSub['code'] === 200 && str_contains($resShopSub['body'], 'Shop License & Plan Management'));
+
+// 3. Shop Creates Subscription Renewal Order
+$resSubOrder = curlReq("{$baseUrl}/api/payment/create-subscription-order.php", 'POST', json_encode([
+    'plan_id' => 1
+]), $shopCookie, ['Content-Type: application/json']);
+$subOrderData = json_decode($resSubOrder['body'], true);
+assertTest("Phase 5: POST /api/payment/create-subscription-order.php generates order", 
+    $resSubOrder['code'] === 200 && 
+    !empty($subOrderData['order_id']) && 
+    str_starts_with($subOrderData['order_id'], 'order_') && 
+    $subOrderData['amount'] === 149900
+);
+
+// 4. Shop Verifies Subscription & Extends License
+$subOrderId = $subOrderData['order_id'];
+$subPayId = 'pay_' . substr(bin2hex(random_bytes(8)), 0, 14);
+$subSig = hash_hmac('sha256', $subOrderId . '|' . $subPayId, RAZORPAY_KEY_SECRET);
+
+$resSubVerify = curlReq("{$baseUrl}/api/payment/verify-subscription.php", 'POST', json_encode([
+    'plan_id'             => 1,
+    'razorpay_order_id'   => $subOrderId,
+    'razorpay_payment_id' => $subPayId,
+    'razorpay_signature'  => $subSig
+]), $shopCookie, ['Content-Type: application/json']);
+$subVerifyData = json_decode($resSubVerify['body'], true);
+
+$stmt = $pdo->prepare("SELECT subscription_status, subscription_expires_at FROM shops WHERE id = 1");
+$stmt->execute();
+$renewedShop = $stmt->fetch();
+
+$stmt = $pdo->prepare("SELECT * FROM shop_subscriptions WHERE shop_id = 1 AND razorpay_payment_id = :pay_id");
+$stmt->execute([':pay_id' => $subPayId]);
+$subLedgerRow = $stmt->fetch();
+
+assertTest("Phase 5: POST /api/payment/verify-subscription.php verifies signature, extends license +90d, and records ledger", 
+    $resSubVerify['code'] === 200 && 
+    $subVerifyData['success'] === true && 
+    $renewedShop['subscription_status'] === 'active' && 
+    !empty($subLedgerRow) && 
+    (float)$subLedgerRow['amount'] === 1499.00
+);
+
+// 5. Customer QR Counter Suspended on Expired License
+$pdo->exec("UPDATE shops SET subscription_status = 'expired', subscription_expires_at = DATE_SUB(NOW(), INTERVAL 1 DAY) WHERE id = 1");
+$resExpiredP = curlReq("{$baseUrl}/p/abc-digital-printing");
+assertTest("Phase 5: Expired shop license protects counter (returns HTTP 403 & maintenance message)", 
+    $resExpiredP['code'] === 403 && str_contains($resExpiredP['body'], 'maintenance')
+);
+
+// Restore active license for shop 1
+$pdo->exec("UPDATE shops SET subscription_status = 'active', subscription_expires_at = DATE_ADD(NOW(), INTERVAL 90 DAY) WHERE id = 1");
+$resActiveP = curlReq("{$baseUrl}/p/abc-digital-printing");
+assertTest("Phase 5: Restoring active license unlocks customer counter immediately", $resActiveP['code'] === 200);
+
 echo PHP_EOL . "==================================================" . PHP_EOL;
 echo "🎉 ALL HARDENED MASTER TESTS PASSED CLEANLY!" . PHP_EOL;
 echo "==================================================" . PHP_EOL;
+
 

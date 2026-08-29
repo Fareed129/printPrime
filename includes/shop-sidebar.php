@@ -73,6 +73,12 @@ if (!empty($shopUser['shop_id'])) {
       </a>
     </li>
     <li class="sidebar-item">
+      <a class="sidebar-link <?= ($currentScript === 'subscription.php') ? 'active' : '' ?>" href="<?= APP_URL ?>/shop/subscription.php">
+        <i class="bi bi-award-fill text-warning"></i>
+        <span>License & Plans</span>
+      </a>
+    </li>
+    <li class="sidebar-item">
       <a class="sidebar-link <?= ($currentScript === 'settings.php') ? 'active' : '' ?>" href="<?= APP_URL ?>/shop/settings.php">
         <i class="bi bi-gear"></i>
         <span>Shop Settings</span>

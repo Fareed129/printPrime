@@ -77,7 +77,10 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
+<?php require_once __DIR__ . '/../includes/subscription-banner.php'; ?>
+
 <!-- Shop KPI Grid -->
+
 <div class="row g-3 mb-4">
   <div class="col-md-4 col-xl-2">
     <div class="stat-card">

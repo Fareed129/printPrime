@@ -37,6 +37,12 @@ $currentScript = basename($_SERVER['PHP_SELF']);
       </a>
     </li>
     <li class="sidebar-item">
+      <a class="sidebar-link <?= ($currentScript === 'subscriptions.php') ? 'active' : '' ?>" href="<?= APP_URL ?>/admin/subscriptions.php">
+        <i class="bi bi-award-fill"></i>
+        <span>Subscriptions</span>
+      </a>
+    </li>
+    <li class="sidebar-item">
       <a class="sidebar-link <?= ($currentScript === 'reports.php') ? 'active' : '' ?>" href="<?= APP_URL ?>/admin/reports.php">
         <i class="bi bi-graph-up-arrow"></i>
         <span>Reports</span>
