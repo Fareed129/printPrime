@@ -56,6 +56,7 @@ function Log-Message {
 function Test-IsDeployableFile {
     param ([string]$RelativePath)
     
+    if ([string]::IsNullOrWhiteSpace($RelativePath)) { return $false }
     $cleanPath = $RelativePath.Replace('\', '/').TrimStart('/')
     
     # 1. Strict Exclusion Denylist
@@ -263,15 +264,18 @@ if ($TestConnection) {
 
 # 2. Verify Git State
 try {
-    $currentCommit = (git rev-parse HEAD).Trim()
-    $currentBranch = (git rev-parse --abbrev-ref HEAD).Trim()
+    $commitRaw = git rev-parse HEAD
+    $currentCommit = if ($commitRaw) { ($commitRaw -join "").Trim() } else { "" }
+    $branchRaw = git rev-parse --abbrev-ref HEAD
+    $currentBranch = if ($branchRaw) { ($branchRaw -join "").Trim() } else { "main" }
 } catch {
     Log-Message "Error: Not in a valid Git repository." -Color Red
     exit 1
 }
 
 # 3. Check for Clean Working Tree
-$statusOutput = (git status --porcelain).Trim()
+$statusRaw = git status --porcelain
+$statusOutput = if ($statusRaw) { ($statusRaw -join "`n").Trim() } else { "" }
 if ($statusOutput -and -not $DryRun -and -not $ShowStatus) {
     Log-Message "Uncommitted changes detected in working tree!" -Color Red
     Log-Message "   Please commit your changes before deploying:" -Color Yellow
@@ -289,7 +293,7 @@ if (Test-Path $StateFile) {
         $state = ConvertFrom-Json $raw -AsHashtable
     } catch {}
 }
-$lastDeployedCommit = if ($state.ContainsKey('lastDeployedCommit')) { $state['lastDeployedCommit'] } else { $null }
+$lastDeployedCommit = if ($state.ContainsKey('lastDeployedCommit') -and $state['lastDeployedCommit']) { [string]$state['lastDeployedCommit'] } else { $null }
 
 # 4. Show Status Mode
 if ($ShowStatus) {
@@ -325,7 +329,7 @@ $filesToDelete = @()
 $detectedMigrations = @()
 $ignoredFiles = @()
 
-if ($Initial -or -not $lastDeployedCommit) {
+if ($Initial -or [string]::IsNullOrWhiteSpace($lastDeployedCommit)) {
     Log-Message "`nScanning all deployable Web App files for INITIAL deployment..." -Color Yellow
     $allFiles = Get-ChildItem -Path $RootDir -Recurse -File
     foreach ($item in $allFiles) {
@@ -340,7 +344,8 @@ if ($Initial -or -not $lastDeployedCommit) {
         }
     }
 } else {
-    $shortLast = $lastDeployedCommit.Substring(0, [Math]::Min(8, $lastDeployedCommit.Length))
+    $shortLen = [Math]::Min(8, $lastDeployedCommit.Length)
+    $shortLast = $lastDeployedCommit.Substring(0, $shortLen)
     Log-Message "`nCalculating changed files since commit: $shortLast..." -Color Yellow
     
     if ($lastDeployedCommit -eq $currentCommit) {
@@ -355,7 +360,6 @@ if ($Initial -or -not $lastDeployedCommit) {
         $status = $parts[0]
         
         if ($status -match '^R') {
-            # Rename: parts[1] = old, parts[2] = new
             $oldFile = $parts[1]
             $newFile = $parts[2]
             if (Test-IsDeployableFile -RelativePath $newFile) {
@@ -370,7 +374,6 @@ if ($Initial -or -not $lastDeployedCommit) {
                 $filesToDelete += $file
             }
         } else {
-            # Added or Modified (A, M)
             $file = $parts[1]
             if ($file -match '^\.env') {
                 Log-Message "WARNING: .env is excluded from deployment. Production credentials on Hostinger are protected." -Color Yellow
