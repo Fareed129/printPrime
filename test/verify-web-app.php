@@ -566,7 +566,8 @@ if ($targetJob) {
 
 // 1. Super Admin Subscriptions Panel Loads
 $resSub = curlReq("{$baseUrl}/admin/subscriptions.php", 'GET', null, $sessionCookie);
-assertTest("Phase 5: Super Admin Subscriptions & Plans panel loads", $resSub['code'] === 200 && str_contains($resSub['body'], 'SaaS Subscriptions & Shop Licenses'));
+assertTest("Phase 5: Super Admin Subscriptions & Plans panel loads", $resSub['code'] === 200 && str_contains($resSub['body'], 'SaaS Subscriptions & Licensing'));
+
 
 
 // 2. Shop Portal License Center Loads

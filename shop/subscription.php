@@ -47,20 +47,14 @@ $history = $stmt->fetchAll();
 
 $daysLeft = (int)($shop['days_left'] ?? 0);
 $isExpired = empty($shop['subscription_expires_at']) || strtotime($shop['subscription_expires_at']) < time();
-$isExpiring = !$isExpired && $daysLeft <= 7;
-
 $pageTitle = 'License & Subscription — ' . APP_NAME;
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="app-wrapper">
-  <?php require_once __DIR__ . '/../includes/shop-sidebar.php'; ?>
+<!-- Breadcrumbs -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
 
-  <main class="app-main">
-    <div class="container-fluid py-4">
 
-      <!-- Breadcrumbs -->
-      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
         <div>
           <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-1">
@@ -283,10 +277,6 @@ require_once __DIR__ . '/../includes/header.php';
           </table>
         </div>
       </div>
-
-    </div>
-  </main>
-</div>
 
 <!-- Razorpay Checkout Integration Script -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>

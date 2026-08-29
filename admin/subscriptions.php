@@ -11,8 +11,7 @@ require_once __DIR__ . '/../config/csrf.php';
 
 require_role('admin');
 
-
-$pageTitle = 'Subscriptions & Plans';
+$pageTitle = 'Subscriptions & Plans — ' . APP_NAME;
 $db = getDBConnection();
 $msgSuccess = '';
 $msgError   = '';
@@ -174,376 +173,306 @@ $ledger = $db->query("
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="app-wrapper">
-  <?php require_once __DIR__ . '/../includes/admin-sidebar.php'; ?>
-
-  <main class="app-main">
-    <div class="container-fluid py-4">
-
-      <!-- Breadcrumbs & Header -->
-      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-        <div>
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-1">
-              <li class="breadcrumb-item"><a href="<?= APP_URL ?>/admin/dashboard.php">Admin</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Subscriptions & Licensing</li>
-            </ol>
-          </nav>
-          <h2 class="h3 fw-bold mb-0">SaaS Subscriptions & Shop Licenses</h2>
-        </div>
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalAddPlan">
-            <i class="bi bi-plus-circle"></i>
-            <span>Add Subscription Plan</span>
-          </button>
-          <button type="button" class="btn btn-success d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#modalExtendLicense">
-            <i class="bi bi-clock-history"></i>
-            <span>Manual License Grant</span>
-          </button>
-        </div>
-      </div>
-
-      <?php if (!empty($msgSuccess)): ?>
-        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
-          <i class="bi bi-check-circle-fill fs-5"></i>
-          <div><?= e($msgSuccess) ?></div>
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      <?php endif; ?>
-
-      <?php if (!empty($msgError)): ?>
-        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
-          <i class="bi bi-exclamation-triangle-fill fs-5"></i>
-          <div><?= e($msgError) ?></div>
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      <?php endif; ?>
-
-      <!-- SaaS Financial KPIs -->
-      <div class="row g-3 mb-4">
-        <div class="col-12 col-sm-6 col-xl-3">
-          <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
-            <div class="card-body p-3 d-flex align-items-center gap-3">
-              <div class="rounded-3 p-3 bg-primary-subtle text-primary">
-                <i class="bi bi-currency-rupee fs-3"></i>
-              </div>
-              <div>
-                <span class="text-muted small fw-semibold text-uppercase">Total SaaS Revenue</span>
-                <h3 class="fw-bold mb-0 text-dark"><?= format_currency($totalRevenue) ?></h3>
-                <span class="small text-success"><i class="bi bi-graph-up me-1"></i>Subscriptions & Setup</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-12 col-sm-6 col-xl-3">
-          <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
-            <div class="card-body p-3 d-flex align-items-center gap-3">
-              <div class="rounded-3 p-3 bg-success-subtle text-success">
-                <i class="bi bi-check2-circle fs-3"></i>
-              </div>
-              <div>
-                <span class="text-muted small fw-semibold text-uppercase">Active Licenses</span>
-                <h3 class="fw-bold mb-0 text-dark"><?= $activeShopsCount ?></h3>
-                <span class="small text-muted">Fully operational shops</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-12 col-sm-6 col-xl-3">
-          <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
-            <div class="card-body p-3 d-flex align-items-center gap-3">
-              <div class="rounded-3 p-3 bg-warning-subtle text-warning">
-                <i class="bi bi-hourglass-split fs-3"></i>
-              </div>
-              <div>
-                <span class="text-muted small fw-semibold text-uppercase">Expiring (7 Days)</span>
-                <h3 class="fw-bold mb-0 text-warning"><?= $expiringShopsCount ?></h3>
-                <span class="small text-muted">Renewal notices sent</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="col-12 col-sm-6 col-xl-3">
-          <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
-            <div class="card-body p-3 d-flex align-items-center gap-3">
-              <div class="rounded-3 p-3 bg-danger-subtle text-danger">
-                <i class="bi bi-slash-circle fs-3"></i>
-              </div>
-              <div>
-                <span class="text-muted small fw-semibold text-uppercase">Expired / Suspended</span>
-                <h3 class="fw-bold mb-0 text-danger"><?= $expiredShopsCount ?></h3>
-                <span class="small text-muted">Counter blocked</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Subscription Plans Section -->
-      <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
-        <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
-          <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-tags-fill me-2 text-primary"></i>Subscription Plans & Pricing</h5>
-          <span class="small text-muted">Offered to physical printing shops</span>
-        </div>
-        <div class="card-body p-4">
-          <div class="row g-4">
-            <?php foreach ($plans as $plan): ?>
-              <div class="col-12 col-md-6 col-lg-4">
-                <div class="card h-100 border rounded-3 p-4 position-relative <?= $plan['is_default'] ? 'border-primary shadow-sm' : '' ?>">
-                  <?php if ($plan['is_default']): ?>
-                    <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-primary px-3 py-1">
-                      DEFAULT RECURRING PLAN
-                    </span>
-                  <?php endif; ?>
-                  <div class="d-flex justify-content-between align-items-start mb-2">
-                    <h5 class="fw-bold text-dark mb-0"><?= e($plan['name']) ?></h5>
-                    <span class="badge bg-<?= $plan['status'] === 'active' ? 'success' : 'secondary' ?>-subtle text-<?= $plan['status'] === 'active' ? 'success' : 'secondary' ?>">
-                      <?= ucfirst($plan['status']) ?>
-                    </span>
-                  </div>
-                  <div class="mb-3">
-                    <span class="fs-2 fw-bold text-primary"><?= format_currency($plan['price']) ?></span>
-                    <span class="text-muted">/ <?= $plan['duration_months'] ?> months</span>
-                  </div>
-                  <div class="small text-muted mb-3">
-                    <div><strong>Setup Fee:</strong> <?= format_currency($plan['setup_fee']) ?> (One-time)</div>
-                    <div><strong>Duration:</strong> <?= $plan['duration_months'] ?> Months (~<?= $plan['duration_months'] * 30 ?> Days)</div>
-                  </div>
-                  <p class="small text-secondary flex-grow-1"><?= e($plan['description']) ?></p>
-                  <button type="button" class="btn btn-outline-primary btn-sm w-100" 
-                          data-bs-toggle="modal" data-bs-target="#modalEditPlan<?= $plan['id'] ?>">
-                    <i class="bi bi-pencil-square me-1"></i> Edit Plan & Pricing
-                  </button>
-                </div>
-              </div>
-
-              <!-- Edit Plan Modal -->
-              <div class="modal fade" id="modalEditPlan<?= $plan['id'] ?>" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog">
-                  <div class="modal-content border-0 shadow">
-                    <form method="POST">
-                      <input type="hidden" name="csrf_token" value="<?= get_csrf_token() ?>">
-                      <input type="hidden" name="action" value="save_plan">
-                      <input type="hidden" name="plan_id" value="<?= $plan['id'] ?>">
-                      <div class="modal-header">
-                        <h5 class="modal-title fw-bold">Edit Plan: <?= e($plan['name']) ?></h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                      </div>
-                      <div class="modal-body">
-                        <div class="mb-3">
-                          <label class="form-label small fw-bold">Plan Name</label>
-                          <input type="text" name="name" class="form-control" value="<?= e($plan['name']) ?>" required>
-                        </div>
-                        <div class="row g-2 mb-3">
-                          <div class="col-6">
-                            <label class="form-label small fw-bold">Duration (Months)</label>
-                            <input type="number" name="duration_months" class="form-control" min="1" max="36" value="<?= $plan['duration_months'] ?>" required>
-                          </div>
-                          <div class="col-6">
-                            <label class="form-label small fw-bold">Subscription Price (₹)</label>
-                            <input type="number" step="0.01" name="price" class="form-control" value="<?= $plan['price'] ?>" required>
-                          </div>
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label small fw-bold">One-Time Setup Fee (₹)</label>
-                          <input type="number" step="0.01" name="setup_fee" class="form-control" value="<?= $plan['setup_fee'] ?>" required>
-                          <span class="form-text small">Charged only upon onboarding a new print shop.</span>
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label small fw-bold">Description / Feature Summary</label>
-                          <textarea name="description" class="form-control" rows="3"><?= e($plan['description']) ?></textarea>
-                        </div>
-                        <div class="mb-3">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" name="is_default" value="1" id="defCheck<?= $plan['id'] ?>" <?= $plan['is_default'] ? 'checked' : '' ?>>
-                            <label class="form-check-label small fw-bold" for="defCheck<?= $plan['id'] ?>">Set as Default 3-Month Plan</label>
-                          </div>
-                        </div>
-                        <div class="mb-3">
-                          <label class="form-label small fw-bold">Plan Status</label>
-                          <select name="status" class="form-select">
-                            <option value="active" <?= $plan['status'] === 'active' ? 'selected' : '' ?>>Active</option>
-                            <option value="inactive" <?= $plan['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary btn-sm px-4">Save Changes</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      </div>
-
-      <!-- Shop Licenses Table -->
-      <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
-        <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
-          <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-shop me-2 text-primary"></i>Shop Licenses & Expiry Overview</h5>
-          <span class="badge bg-light text-dark border"><?= count($shops) ?> Total Shops</span>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light small text-uppercase">
-              <tr>
-                <th class="ps-4">Shop</th>
-                <th>Current Plan</th>
-                <th>Setup Fee</th>
-                <th>Valid Until</th>
-                <th>Status / Days Left</th>
-                <th class="text-end pe-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (empty($shops)): ?>
-                <tr>
-                  <td colspan="6" class="text-center py-4 text-muted">No print shops registered yet.</td>
-                </tr>
-              <?php else: ?>
-                <?php foreach ($shops as $s): 
-                  $days = (int)($s['days_left'] ?? 0);
-                  $isExpired = empty($s['subscription_expires_at']) || strtotime($s['subscription_expires_at']) < time();
-                  $isExpiring = !$isExpired && $days <= 7;
-                ?>
-                  <tr>
-                    <td class="ps-4">
-                      <div class="fw-bold text-dark"><?= e($s['name']) ?></div>
-                      <div class="small text-muted">Slug: <code><?= e($s['slug']) ?></code> • <?= e($s['phone']) ?></div>
-                    </td>
-                    <td>
-                      <span class="badge bg-light text-dark border"><?= e($s['plan_name'] ?? '3-Month Quarterly Pro') ?></span>
-                    </td>
-                    <td>
-                      <?php if ($s['setup_fee_paid']): ?>
-                        <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>Paid</span>
-                      <?php else: ?>
-                        <span class="badge bg-warning-subtle text-warning"><i class="bi bi-clock me-1"></i>Unpaid</span>
-                      <?php endif; ?>
-                    </td>
-                    <td>
-                      <?php if (!empty($s['subscription_expires_at'])): ?>
-                        <span class="fw-semibold"><?= date('d M Y', strtotime($s['subscription_expires_at'])) ?></span>
-                      <?php else: ?>
-                        <span class="text-muted">Not Configured</span>
-                      <?php endif; ?>
-                    </td>
-                    <td>
-                      <?php if ($isExpired): ?>
-                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
-                          <i class="bi bi-x-circle me-1"></i>Expired (<?= abs($days) ?>d ago)
-                        </span>
-                      <?php elseif ($isExpiring): ?>
-                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">
-                          <i class="bi bi-hourglass-split me-1"></i>Expiring in <?= $days ?> days
-                        </span>
-                      <?php else: ?>
-                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                          <i class="bi bi-check-circle me-1"></i>Active (<?= $days ?> days left)
-                        </span>
-                      <?php endif; ?>
-                    </td>
-                    <td class="text-end pe-4">
-                      <div class="d-inline-flex gap-1">
-                        <button type="button" class="btn btn-sm btn-outline-success" 
-                                onclick="openExtendModal(<?= $s['id'] ?>, '<?= addslashes($s['name']) ?>', '<?= !empty($s['subscription_expires_at']) ? date('Y-m-d', strtotime($s['subscription_expires_at'])) : '' ?>')">
-                          <i class="bi bi-clock-history me-1"></i> Extend
-                        </button>
-                        <a href="<?= APP_URL ?>/admin/shop-view.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-primary">
-                          <i class="bi bi-eye"></i>
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Subscription Payment History (Ledger) -->
-      <div class="card border-0 shadow-sm rounded-3 bg-white">
-        <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
-          <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-journal-text me-2 text-primary"></i>Subscription Payment Ledger</h5>
-          <span class="small text-muted">Latest 50 transactions</span>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light small text-uppercase">
-              <tr>
-                <th class="ps-4">ID</th>
-                <th>Shop</th>
-                <th>Amount</th>
-                <th>Payment Method</th>
-                <th>Validity Period</th>
-                <th>Reference / Notes</th>
-                <th class="pe-4 text-end">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (empty($ledger)): ?>
-                <tr>
-                  <td colspan="7" class="text-center py-4 text-muted">No subscription payments recorded yet.</td>
-                </tr>
-              <?php else: ?>
-                <?php foreach ($ledger as $tx): ?>
-                  <tr>
-                    <td class="ps-4 fw-bold">#SUB-<?= $tx['id'] ?></td>
-                    <td>
-                      <span class="fw-bold text-dark"><?= e($tx['shop_name']) ?></span>
-                    </td>
-                    <td><span class="fw-bold text-success"><?= format_currency($tx['amount']) ?></span></td>
-                    <td>
-                      <?php if ($tx['payment_method'] === 'razorpay'): ?>
-                        <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-lightning-charge-fill me-1"></i>Razorpay</span>
-                      <?php elseif ($tx['payment_method'] === 'upi'): ?>
-                        <span class="badge bg-info-subtle text-info border"><i class="bi bi-qr-code me-1"></i>UPI Transfer</span>
-                      <?php elseif ($tx['payment_method'] === 'cash'): ?>
-                        <span class="badge bg-secondary-subtle text-secondary border"><i class="bi bi-cash me-1"></i>Cash</span>
-                      <?php else: ?>
-                        <span class="badge bg-light text-dark border">Manual Admin</span>
-                      <?php endif; ?>
-                    </td>
-                    <td>
-                      <span class="small"><?= date('d M Y', strtotime($tx['starts_at'])) ?> → <strong><?= date('d M Y', strtotime($tx['expires_at'])) ?></strong></span>
-                    </td>
-                    <td>
-                      <span class="small text-muted"><?= e($tx['razorpay_payment_id'] ?? $tx['notes'] ?? '-') ?></span>
-                    </td>
-                    <td class="pe-4 text-end small text-muted">
-                      <?= date('d M Y, h:i A', strtotime($tx['created_at'])) ?>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-  </main>
+<!-- Breadcrumbs & Header -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+  <div>
+    <h3 class="fw-bold text-dark mb-1">SaaS Subscriptions & Licensing</h3>
+    <p class="text-muted small mb-0">Manage pricing plans, track shop licenses, and record renewals.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm" onclick="openAddPlanModal()">
+      <i class="bi bi-plus-circle"></i>
+      <span>Add Subscription Plan</span>
+    </button>
+    <button type="button" class="btn btn-success d-flex align-items-center gap-2 shadow-sm" onclick="openExtendModal(null, '', '')">
+      <i class="bi bi-clock-history"></i>
+      <span>Manual License Grant</span>
+    </button>
+  </div>
 </div>
 
+<?php if (!empty($msgSuccess)): ?>
+  <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+    <i class="bi bi-check-circle-fill fs-5"></i>
+    <div><?= e($msgSuccess) ?></div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+<?php endif; ?>
+
+<?php if (!empty($msgError)): ?>
+  <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+    <div><?= e($msgError) ?></div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+<?php endif; ?>
+
+<!-- SaaS Financial KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-3 d-flex align-items-center gap-3">
+        <div class="rounded-3 p-3 bg-primary-subtle text-primary">
+          <i class="bi bi-currency-rupee fs-3"></i>
+        </div>
+        <div>
+          <span class="text-muted small fw-semibold text-uppercase">Total SaaS Revenue</span>
+          <h3 class="fw-bold mb-0 text-dark"><?= format_currency($totalRevenue) ?></h3>
+          <span class="small text-success"><i class="bi bi-graph-up me-1"></i>Subscriptions & Setup</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-3 d-flex align-items-center gap-3">
+        <div class="rounded-3 p-3 bg-success-subtle text-success">
+          <i class="bi bi-check2-circle fs-3"></i>
+        </div>
+        <div>
+          <span class="text-muted small fw-semibold text-uppercase">Active Licenses</span>
+          <h3 class="fw-bold mb-0 text-dark"><?= $activeShopsCount ?></h3>
+          <span class="small text-muted">Fully operational shops</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-3 d-flex align-items-center gap-3">
+        <div class="rounded-3 p-3 bg-warning-subtle text-warning">
+          <i class="bi bi-hourglass-split fs-3"></i>
+        </div>
+        <div>
+          <span class="text-muted small fw-semibold text-uppercase">Expiring (7 Days)</span>
+          <h3 class="fw-bold mb-0 text-warning"><?= $expiringShopsCount ?></h3>
+          <span class="small text-muted">Renewal notices sent</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+      <div class="card-body p-3 d-flex align-items-center gap-3">
+        <div class="rounded-3 p-3 bg-danger-subtle text-danger">
+          <i class="bi bi-slash-circle fs-3"></i>
+        </div>
+        <div>
+          <span class="text-muted small fw-semibold text-uppercase">Expired / Suspended</span>
+          <h3 class="fw-bold mb-0 text-danger"><?= $expiredShopsCount ?></h3>
+          <span class="small text-muted">Counter blocked</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Subscription Plans Section -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+  <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
+    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-tags-fill me-2 text-primary"></i>Subscription Plans & Pricing</h5>
+    <span class="small text-muted">Offered to physical printing shops</span>
+  </div>
+  <div class="card-body p-4">
+    <div class="row g-4">
+      <?php foreach ($plans as $plan): ?>
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="card h-100 border rounded-3 p-4 position-relative <?= $plan['is_default'] ? 'border-primary shadow-sm' : '' ?>">
+            <?php if ($plan['is_default']): ?>
+              <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-primary px-3 py-1">
+                DEFAULT RECURRING PLAN
+              </span>
+            <?php endif; ?>
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h5 class="fw-bold text-dark mb-0"><?= e($plan['name']) ?></h5>
+              <span class="badge bg-<?= $plan['status'] === 'active' ? 'success' : 'secondary' ?>-subtle text-<?= $plan['status'] === 'active' ? 'success' : 'secondary' ?>">
+                <?= ucfirst($plan['status']) ?>
+              </span>
+            </div>
+            <div class="mb-3">
+              <span class="fs-2 fw-bold text-primary"><?= format_currency($plan['price']) ?></span>
+              <span class="text-muted">/ <?= $plan['duration_months'] ?> months</span>
+            </div>
+            <div class="small text-muted mb-3">
+              <div><strong>Setup Fee:</strong> <?= format_currency($plan['setup_fee']) ?> (One-time)</div>
+              <div><strong>Duration:</strong> <?= $plan['duration_months'] ?> Months (~<?= $plan['duration_months'] * 30 ?> Days)</div>
+            </div>
+            <p class="small text-secondary flex-grow-1"><?= e($plan['description']) ?></p>
+            <button type="button" class="btn btn-outline-primary btn-sm w-100" 
+                    onclick="openEditPlanModal(<?= $plan['id'] ?>)">
+              <i class="bi bi-pencil-square me-1"></i> Edit Plan & Pricing
+            </button>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</div>
+
+<!-- Shop Licenses Table -->
+<div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+  <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
+    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-shop me-2 text-primary"></i>Shop Licenses & Expiry Overview</h5>
+    <span class="badge bg-light text-dark border"><?= count($shops) ?> Total Shops</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light small text-uppercase">
+        <tr>
+          <th class="ps-4">Shop</th>
+          <th>Current Plan</th>
+          <th>Setup Fee</th>
+          <th>Valid Until</th>
+          <th>Status / Days Left</th>
+          <th class="text-end pe-4">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (empty($shops)): ?>
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">No print shops registered yet.</td>
+          </tr>
+        <?php else: ?>
+          <?php foreach ($shops as $s): 
+            $days = (int)($s['days_left'] ?? 0);
+            $isExpired = empty($s['subscription_expires_at']) || strtotime($s['subscription_expires_at']) < time();
+            $isExpiring = !$isExpired && $days <= 7;
+          ?>
+            <tr>
+              <td class="ps-4">
+                <div class="fw-bold text-dark"><?= e($s['name']) ?></div>
+                <div class="small text-muted">Slug: <code><?= e($s['slug']) ?></code> • <?= e($s['phone']) ?></div>
+              </td>
+              <td>
+                <span class="badge bg-light text-dark border"><?= e($s['plan_name'] ?? '3-Month Quarterly Pro') ?></span>
+              </td>
+              <td>
+                <?php if ($s['setup_fee_paid']): ?>
+                  <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>Paid</span>
+                <?php else: ?>
+                  <span class="badge bg-warning-subtle text-warning"><i class="bi bi-clock me-1"></i>Unpaid</span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <?php if (!empty($s['subscription_expires_at'])): ?>
+                  <span class="fw-semibold"><?= date('d M Y', strtotime($s['subscription_expires_at'])) ?></span>
+                <?php else: ?>
+                  <span class="text-muted">Not Configured</span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <?php if ($isExpired): ?>
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                    <i class="bi bi-x-circle me-1"></i>Expired (<?= abs($days) ?>d ago)
+                  </span>
+                <?php elseif ($isExpiring): ?>
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">
+                    <i class="bi bi-hourglass-split me-1"></i>Expiring in <?= $days ?> days
+                  </span>
+                <?php else: ?>
+                  <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                    <i class="bi bi-check-circle me-1"></i>Active (<?= $days ?> days left)
+                  </span>
+                <?php endif; ?>
+              </td>
+              <td class="text-end pe-4">
+                <div class="d-inline-flex gap-1">
+                  <button type="button" class="btn btn-sm btn-outline-success" 
+                          onclick="openExtendModal(<?= $s['id'] ?>, '<?= addslashes($s['name']) ?>', '<?= !empty($s['subscription_expires_at']) ? date('Y-m-d', strtotime($s['subscription_expires_at'])) : '' ?>')">
+                    <i class="bi bi-clock-history me-1"></i> Extend
+                  </button>
+                  <a href="<?= APP_URL ?>/admin/shop-view.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Subscription Payment History (Ledger) -->
+<div class="card border-0 shadow-sm rounded-3 bg-white">
+  <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
+    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-journal-text me-2 text-primary"></i>Subscription Payment Ledger</h5>
+    <span class="small text-muted">Latest 50 transactions</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light small text-uppercase">
+        <tr>
+          <th class="ps-4">ID</th>
+          <th>Shop</th>
+          <th>Amount</th>
+          <th>Payment Method</th>
+          <th>Validity Period</th>
+          <th>Reference / Notes</th>
+          <th class="pe-4 text-end">Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if (empty($ledger)): ?>
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">No subscription payments recorded yet.</td>
+          </tr>
+        <?php else: ?>
+          <?php foreach ($ledger as $tx): ?>
+            <tr>
+              <td class="ps-4 fw-bold">#SUB-<?= $tx['id'] ?></td>
+              <td>
+                <span class="fw-bold text-dark"><?= e($tx['shop_name']) ?></span>
+              </td>
+              <td><span class="fw-bold text-success"><?= format_currency($tx['amount']) ?></span></td>
+              <td>
+                <?php if ($tx['payment_method'] === 'razorpay'): ?>
+                  <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-lightning-charge-fill me-1"></i>Razorpay</span>
+                <?php elseif ($tx['payment_method'] === 'upi'): ?>
+                  <span class="badge bg-info-subtle text-info border"><i class="bi bi-qr-code me-1"></i>UPI Transfer</span>
+                <?php elseif ($tx['payment_method'] === 'cash'): ?>
+                  <span class="badge bg-secondary-subtle text-secondary border"><i class="bi bi-cash me-1"></i>Cash</span>
+                <?php else: ?>
+                  <span class="badge bg-light text-dark border">Manual Admin</span>
+                <?php endif; ?>
+              </td>
+              <td>
+                <span class="small"><?= date('d M Y', strtotime($tx['starts_at'])) ?> → <strong><?= date('d M Y', strtotime($tx['expires_at'])) ?></strong></span>
+              </td>
+              <td>
+                <span class="small text-muted"><?= e($tx['razorpay_payment_id'] ?? $tx['notes'] ?? '-') ?></span>
+              </td>
+              <td class="pe-4 text-end small text-muted">
+                <?= date('d M Y, h:i A', strtotime($tx['created_at'])) ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- MODALS PLACED AT ROOT LEVEL FOR CLEAN BOOTSTRAP 5 ACCESS -->
+<!-- ========================================================= -->
+
 <!-- Modal: Add Subscription Plan -->
-<div class="modal fade" id="modalAddPlan" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+<div class="modal fade" id="modalAddPlan" tabindex="-1" aria-labelledby="modalAddPlanLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
-      <form method="POST">
+      <form method="POST" action="<?= APP_URL ?>/admin/subscriptions.php">
         <input type="hidden" name="csrf_token" value="<?= get_csrf_token() ?>">
         <input type="hidden" name="action" value="save_plan">
-        <div class="modal-header">
-          <h5 class="modal-title fw-bold">Create New Subscription Plan</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title fw-bold" id="modalAddPlanLabel"><i class="bi bi-plus-circle me-2"></i>Create New Subscription Plan</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body p-4">
           <div class="mb-3">
             <label class="form-label small fw-bold">Plan Name</label>
             <input type="text" name="name" class="form-control" placeholder="e.g. 6-Month Semi-Annual Plan" required>
@@ -561,16 +490,24 @@ require_once __DIR__ . '/../includes/header.php';
           <div class="mb-3">
             <label class="form-label small fw-bold">Setup Fee (₹)</label>
             <input type="number" step="0.01" name="setup_fee" class="form-control" value="1999.00" required>
+            <span class="form-text small">One-time setup / onboarding fee charged to print shops.</span>
           </div>
           <div class="mb-3">
-            <label class="form-label small fw-bold">Description</label>
+            <label class="form-label small fw-bold">Description / Features</label>
             <textarea name="description" class="form-control" rows="3" placeholder="Plan details and features"></textarea>
           </div>
           <div class="mb-3">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" name="is_default" value="1" id="addDefCheck">
-              <label class="form-check-label small fw-bold" for="addDefCheck">Make Default Plan</label>
+              <label class="form-check-label small fw-bold" for="addDefCheck">Make Default 3-Month Plan</label>
             </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-bold">Plan Status</label>
+            <select name="status" class="form-select">
+              <option value="active" selected>Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
           </div>
         </div>
         <div class="modal-footer bg-light">
@@ -582,18 +519,78 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
+<!-- Modals for Editing Existing Plans -->
+<?php foreach ($plans as $plan): ?>
+  <div class="modal fade" id="modalEditPlan<?= $plan['id'] ?>" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <form method="POST" action="<?= APP_URL ?>/admin/subscriptions.php">
+          <input type="hidden" name="csrf_token" value="<?= get_csrf_token() ?>">
+          <input type="hidden" name="action" value="save_plan">
+          <input type="hidden" name="plan_id" value="<?= $plan['id'] ?>">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Plan: <?= e($plan['name']) ?></h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Plan Name</label>
+              <input type="text" name="name" class="form-control" value="<?= e($plan['name']) ?>" required>
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <label class="form-label small fw-bold">Duration (Months)</label>
+                <input type="number" name="duration_months" class="form-control" min="1" max="36" value="<?= $plan['duration_months'] ?>" required>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-bold">Subscription Price (₹)</label>
+                <input type="number" step="0.01" name="price" class="form-control" value="<?= $plan['price'] ?>" required>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">One-Time Setup Fee (₹)</label>
+              <input type="number" step="0.01" name="setup_fee" class="form-control" value="<?= $plan['setup_fee'] ?>" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Description / Features</label>
+              <textarea name="description" class="form-control" rows="3"><?= e($plan['description']) ?></textarea>
+            </div>
+            <div class="mb-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="is_default" value="1" id="defCheck<?= $plan['id'] ?>" <?= $plan['is_default'] ? 'checked' : '' ?>>
+                <label class="form-check-label small fw-bold" for="defCheck<?= $plan['id'] ?>">Set as Default Plan</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small fw-bold">Plan Status</label>
+              <select name="status" class="form-select">
+                <option value="active" <?= $plan['status'] === 'active' ? 'selected' : '' ?>>Active</option>
+                <option value="inactive" <?= $plan['status'] === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer bg-light">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary btn-sm px-4">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+<?php endforeach; ?>
+
 <!-- Modal: Manual License Extender -->
-<div class="modal fade" id="modalExtendLicense" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
+<div class="modal fade" id="modalExtendLicense" tabindex="-1" aria-labelledby="modalExtendLicenseLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
-      <form method="POST">
+      <form method="POST" action="<?= APP_URL ?>/admin/subscriptions.php">
         <input type="hidden" name="csrf_token" value="<?= get_csrf_token() ?>">
         <input type="hidden" name="action" value="extend_license">
-        <div class="modal-header">
-          <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2 text-success"></i>Manual License Grant / Extension</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-header bg-success text-white">
+          <h5 class="modal-title fw-bold" id="modalExtendLicenseLabel"><i class="bi bi-clock-history me-2"></i>Manual License Grant / Extension</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body p-4">
           <div class="mb-3">
             <label class="form-label small fw-bold">Select Print Shop</label>
             <select name="shop_id" id="extendShopSelect" class="form-select" required>
@@ -646,10 +643,31 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
+function openAddPlanModal() {
+  const modalEl = document.getElementById('modalAddPlan');
+  if (modalEl) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+}
+
+function openEditPlanModal(planId) {
+  const modalEl = document.getElementById('modalEditPlan' + planId);
+  if (modalEl) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+}
+
 function openExtendModal(shopId, shopName, currentExpiry) {
-  const modal = new bootstrap.Modal(document.getElementById('modalExtendLicense'));
-  document.getElementById('extendShopSelect').value = shopId;
-  modal.show();
+  const modalEl = document.getElementById('modalExtendLicense');
+  if (modalEl) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    if (shopId) {
+      document.getElementById('extendShopSelect').value = shopId;
+    }
+    modal.show();
+  }
 }
 
 function setExtensionDays(days) {
