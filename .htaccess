@@ -25,13 +25,18 @@ Options -Indexes -ExecCGI
     # Route /api/agent/jobs/{id}/status to api/agent/job-status.php?id=$1
     RewriteRule ^api/agent/jobs/([0-9]+)/status/?$ api/agent/job-status.php?id=$1 [L,QSA]
 
-    # Protect sensitive directories from direct web browsing
+    # Route /migrate to database/migrate.php
+    RewriteRule ^migrate/?$ database/migrate.php [L,QSA]
+
+    # Protect sensitive directories from direct web browsing (except migrate.php)
+    RewriteCond %{REQUEST_URI} !^/database/migrate\.php$
     RewriteRule ^(config|database|logs)/ - [F,L]
 
     # Extensionless PHP scripts support
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME}\.php -f
     RewriteRule ^(.*)$ $1.php [L,QSA]
+
 </IfModule>
 
 # Protect Sensitive Configuration, SQL, Logs, and Metadata Files
