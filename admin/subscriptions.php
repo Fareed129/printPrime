@@ -180,11 +180,13 @@ require_once __DIR__ . '/../includes/header.php';
     <p class="text-muted small mb-0">Manage pricing plans, track shop licenses, and record renewals.</p>
   </div>
   <div class="d-flex gap-2">
-    <button type="button" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm" onclick="openAddPlanModal()">
+    <button type="button" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm" 
+            data-bs-toggle="modal" data-bs-target="#modalAddPlan" onclick="showModalSafely('modalAddPlan')">
       <i class="bi bi-plus-circle"></i>
       <span>Add Subscription Plan</span>
     </button>
-    <button type="button" class="btn btn-success d-flex align-items-center gap-2 shadow-sm" onclick="openExtendModal(null, '', '')">
+    <button type="button" class="btn btn-success d-flex align-items-center gap-2 shadow-sm" 
+            data-bs-toggle="modal" data-bs-target="#modalExtendLicense" onclick="showModalSafely('modalExtendLicense')">
       <i class="bi bi-clock-history"></i>
       <span>Manual License Grant</span>
     </button>
@@ -302,7 +304,8 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <p class="small text-secondary flex-grow-1"><?= e($plan['description']) ?></p>
             <button type="button" class="btn btn-outline-primary btn-sm w-100" 
-                    onclick="openEditPlanModal(<?= $plan['id'] ?>)">
+                    data-bs-toggle="modal" data-bs-target="#modalEditPlan<?= $plan['id'] ?>"
+                    onclick="showModalSafely('modalEditPlan<?= $plan['id'] ?>')">
               <i class="bi bi-pencil-square me-1"></i> Edit Plan & Pricing
             </button>
           </div>
@@ -381,7 +384,7 @@ require_once __DIR__ . '/../includes/header.php';
               <td class="text-end pe-4">
                 <div class="d-inline-flex gap-1">
                   <button type="button" class="btn btn-sm btn-outline-success" 
-                          onclick="openExtendModal(<?= $s['id'] ?>, '<?= addslashes($s['name']) ?>', '<?= !empty($s['subscription_expires_at']) ? date('Y-m-d', strtotime($s['subscription_expires_at'])) : '' ?>')">
+                          onclick="openShopExtendModal(<?= $s['id'] ?>)">
                     <i class="bi bi-clock-history me-1"></i> Extend
                   </button>
                   <a href="<?= APP_URL ?>/admin/shop-view.php?id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-primary">
@@ -462,7 +465,7 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- ========================================================= -->
 
 <!-- Modal: Add Subscription Plan -->
-<div class="modal fade" id="modalAddPlan" tabindex="-1" aria-labelledby="modalAddPlanLabel" aria-hidden="true">
+<div class="modal fade" id="modalAddPlan" tabindex="-1" aria-labelledby="modalAddPlanLabel" aria-hidden="true" style="display: none;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <form method="POST" action="<?= APP_URL ?>/admin/subscriptions.php">
@@ -470,7 +473,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="action" value="save_plan">
         <div class="modal-header bg-primary text-white">
           <h5 class="modal-title fw-bold" id="modalAddPlanLabel"><i class="bi bi-plus-circle me-2"></i>Create New Subscription Plan</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeModalSafely('modalAddPlan')" aria-label="Close"></button>
         </div>
         <div class="modal-body p-4">
           <div class="mb-3">
@@ -511,7 +514,7 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
         </div>
         <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" onclick="closeModalSafely('modalAddPlan')">Cancel</button>
           <button type="submit" class="btn btn-primary btn-sm px-4">Create Plan</button>
         </div>
       </form>
@@ -521,7 +524,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <!-- Modals for Editing Existing Plans -->
 <?php foreach ($plans as $plan): ?>
-  <div class="modal fade" id="modalEditPlan<?= $plan['id'] ?>" tabindex="-1" aria-hidden="true">
+  <div class="modal fade" id="modalEditPlan<?= $plan['id'] ?>" tabindex="-1" aria-hidden="true" style="display: none;">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content border-0 shadow">
         <form method="POST" action="<?= APP_URL ?>/admin/subscriptions.php">
@@ -530,7 +533,7 @@ require_once __DIR__ . '/../includes/header.php';
           <input type="hidden" name="plan_id" value="<?= $plan['id'] ?>">
           <div class="modal-header bg-dark text-white">
             <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Plan: <?= e($plan['name']) ?></h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeModalSafely('modalEditPlan<?= $plan['id'] ?>')" aria-label="Close"></button>
           </div>
           <div class="modal-body p-4">
             <div class="mb-3">
@@ -570,7 +573,7 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
           </div>
           <div class="modal-footer bg-light">
-            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" onclick="closeModalSafely('modalEditPlan<?= $plan['id'] ?>')">Cancel</button>
             <button type="submit" class="btn btn-primary btn-sm px-4">Save Changes</button>
           </div>
         </form>
@@ -580,7 +583,7 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endforeach; ?>
 
 <!-- Modal: Manual License Extender -->
-<div class="modal fade" id="modalExtendLicense" tabindex="-1" aria-labelledby="modalExtendLicenseLabel" aria-hidden="true">
+<div class="modal fade" id="modalExtendLicense" tabindex="-1" aria-labelledby="modalExtendLicenseLabel" aria-hidden="true" style="display: none;">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <form method="POST" action="<?= APP_URL ?>/admin/subscriptions.php">
@@ -588,7 +591,7 @@ require_once __DIR__ . '/../includes/header.php';
         <input type="hidden" name="action" value="extend_license">
         <div class="modal-header bg-success text-white">
           <h5 class="modal-title fw-bold" id="modalExtendLicenseLabel"><i class="bi bi-clock-history me-2"></i>Manual License Grant / Extension</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeModalSafely('modalExtendLicense')" aria-label="Close"></button>
         </div>
         <div class="modal-body p-4">
           <div class="mb-3">
@@ -634,7 +637,7 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
         </div>
         <div class="modal-footer bg-light">
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal" onclick="closeModalSafely('modalExtendLicense')">Cancel</button>
           <button type="submit" class="btn btn-success btn-sm px-4">Grant & Update License</button>
         </div>
       </form>
@@ -643,35 +646,67 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-function openAddPlanModal() {
-  const modalEl = document.getElementById('modalAddPlan');
-  if (modalEl) {
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-  }
-}
+// Universal Modal Controller (Bootstrap 5 + Native Fallback)
+function showModalSafely(modalId) {
+  const modalEl = document.getElementById(modalId);
+  if (!modalEl) return;
 
-function openEditPlanModal(planId) {
-  const modalEl = document.getElementById('modalEditPlan' + planId);
-  if (modalEl) {
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-  }
-}
-
-function openExtendModal(shopId, shopName, currentExpiry) {
-  const modalEl = document.getElementById('modalExtendLicense');
-  if (modalEl) {
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    if (shopId) {
-      document.getElementById('extendShopSelect').value = shopId;
+  if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    try {
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+      return;
+    } catch (e) {
+      console.warn('Bootstrap modal init warning:', e);
     }
-    modal.show();
   }
+
+  // Pure Native Fallback
+  modalEl.style.display = 'block';
+  modalEl.classList.add('show');
+  document.body.classList.add('modal-open');
+  
+  if (!document.getElementById('modalBackdropFallback')) {
+    const backdrop = document.createElement('div');
+    backdrop.id = 'modalBackdropFallback';
+    backdrop.className = 'modal-backdrop fade show';
+    document.body.appendChild(backdrop);
+    backdrop.addEventListener('click', () => closeModalSafely(modalId));
+  }
+}
+
+function closeModalSafely(modalId) {
+  const modalEl = document.getElementById(modalId);
+  if (!modalEl) return;
+
+  if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    try {
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) {
+        modal.hide();
+        return;
+      }
+    } catch (e) {}
+  }
+
+  modalEl.style.display = 'none';
+  modalEl.classList.remove('show');
+  document.body.classList.remove('modal-open');
+  const backdrop = document.getElementById('modalBackdropFallback');
+  if (backdrop) backdrop.remove();
+}
+
+function openShopExtendModal(shopId) {
+  const select = document.getElementById('extendShopSelect');
+  if (select && shopId) {
+    select.value = shopId;
+  }
+  showModalSafely('modalExtendLicense');
 }
 
 function setExtensionDays(days) {
-  document.getElementById('extendDaysInput').value = days;
+  const input = document.getElementById('extendDaysInput');
+  if (input) input.value = days;
 }
 </script>
 
