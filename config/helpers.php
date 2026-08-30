@@ -13,11 +13,15 @@ function e(?string $string): string {
 }
 
 /**
- * Generate same-origin root-relative asset URL (safe across localhost, reverse proxies, and production domains)
+ * Generate same-origin root-relative asset URL with automatic cache-busting
  */
 function asset_url(string $path): string {
-    return '/' . ltrim($path, '/');
+    $cleanPath = '/' . ltrim($path, '/');
+    $localPath = __DIR__ . '/../' . ltrim($path, '/');
+    $version = file_exists($localPath) ? filemtime($localPath) : time();
+    return $cleanPath . '?v=' . $version;
 }
+
 
 /**
  * Generate a URL-friendly slug from string
