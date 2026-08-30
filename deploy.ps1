@@ -147,13 +147,16 @@ function New-FtpRequest {
     $request.Credentials = New-Object System.Net.NetworkCredential($Config['FTP_USERNAME'], $Config['FTP_PASSWORD'])
     $request.Method = $Method
     $request.UseBinary = $true
-    $request.UsePassive = $true
+    
+    $usePassive = if ($Config.ContainsKey('FTP_USE_PASSIVE')) { ($Config['FTP_USE_PASSIVE'] -eq "true" -or $Config['FTP_USE_PASSIVE'] -eq "1") } else { $false }
+    $request.UsePassive = $usePassive
     $request.KeepAlive = $false
     
     $useTls = ($Config['FTP_USE_TLS'] -eq "true" -or $Config['FTP_USE_TLS'] -eq "1")
     $request.EnableSsl = $useTls
     
     return $request
+
 }
 
 # Recursively ensure remote directory exists
