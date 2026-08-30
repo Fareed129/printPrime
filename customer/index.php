@@ -1,6 +1,6 @@
 <?php
 /**
- * PrimePrint Customer Upload & Printing Configuration Portal
+ * PrimePrint Customer Upload & Printing Configuration Portal (Mobile-First Web App)
  */
 
 require_once __DIR__ . '/../config/config.php';
@@ -68,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Check duplicate submission
     if (!empty($formToken) && isset($_SESSION['submitted_form_tokens'][$formToken])) {
-        // Already processed -> redirect directly to the existing order review
         $existingToken = $_SESSION['submitted_form_tokens'][$formToken];
         header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($existingToken));
         exit;
@@ -78,9 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Form session has expired or was already submitted. Please refresh and try again.';
     }
 
-    $paperSize = trim($_POST['paper_size'] ?? '');
-    $colorMode = trim($_POST['color_mode'] ?? '');
-    $sideMode  = trim($_POST['side_mode'] ?? '');
+    $paperSize = trim($_POST['paper_size'] ?? 'A4');
+    $colorMode = trim($_POST['color_mode'] ?? 'BW');
+    $sideMode  = trim($_POST['side_mode'] ?? 'single');
     $copies    = (int)($_POST['copies'] ?? 1);
     $printerId = (int)($_POST['printer_id'] ?? 0);
 
@@ -154,7 +153,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $serverPageCount = $detectedPages;
                     }
                 } else {
-                    // Images strictly count as 1 page
                     $serverPageCount = 1;
                 }
 
@@ -169,7 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $calculatedAmount = $priceResult['total_amount'];
 
                         try {
-                            // Generate safe unique public order token
                             $publicToken = generate_public_order_token($db);
 
                             // Insert Print Job in PAYMENT_PENDING state
@@ -201,8 +198,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 ':amount'           => $calculatedAmount
                             ]);
 
-                            $jobId = (int)$db->lastInsertId();
-
                             // Mark form token as consumed to prevent double submissions
                             unset($_SESSION['active_form_tokens'][$formToken]);
                             $_SESSION['submitted_form_tokens'][$formToken] = $publicToken;
@@ -233,226 +228,315 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title><?= e($pageTitle) ?></title>
+  
+  <!-- Bootstrap 5.3 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <!-- Custom Modern Design System -->
   <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
+  
   <script>
-    // Embed shop pricing rules for live browser calculations
+    // Embed shop pricing rules for instant client-side calculation
     window.SHOP_PRICING_TABLE = <?= json_encode($shopPricing) ?>;
   </script>
 </head>
-<body class="bg-light">
+<body class="customer-app-shell">
 
-  <!-- Mobile-First Hero Section -->
-  <header class="customer-hero">
-    <div class="container" style="max-width: 600px;">
-      <span class="badge bg-white text-primary rounded-pill px-3 py-1 fw-bold text-uppercase mb-2 shadow-sm" style="font-size: 0.75rem;">
-        <i class="bi bi-printer-fill me-1"></i> <?= e($shop['name']) ?>
-      </span>
-      <h2 class="fw-bold mb-1">Self-Service Document Printing</h2>
-      <p class="mb-0 text-white-50 small">Upload your document, configure printing options, and review your order.</p>
+  <!-- Mobile Hero Header -->
+  <header class="customer-hero-header">
+    <div class="container" style="max-width: 560px;">
+      
+      <div class="shop-counter-badge">
+        <i class="bi bi-shop"></i>
+        <span><?= e($shop['name']) ?></span>
+      </div>
+
+      <h2 class="fw-bold text-white mb-1 fs-3">Self-Service Counter Print</h2>
+      <p class="text-white-50 small mb-0">Upload document, choose options, and print instantly.</p>
+
+      <!-- 3-Step Progress Indicator -->
+      <div class="customer-stepper">
+        <div class="step-item active">
+          <span class="step-num">1</span>
+          <span>Upload</span>
+        </div>
+        <span class="step-divider"></span>
+        <div class="step-item">
+          <span class="step-num">2</span>
+          <span>Options</span>
+        </div>
+        <span class="step-divider"></span>
+        <div class="step-item">
+          <span class="step-num">3</span>
+          <span>Print</span>
+        </div>
+      </div>
+
     </div>
   </header>
 
-  <!-- Upload & Preferences Container -->
-  <main class="customer-container">
+  <!-- Main Customer App Container -->
+  <main class="customer-portal-container">
     
-    <div class="card card-pp shadow-sm mb-4">
-      <div class="card-body p-4">
+    <div class="customer-card">
 
-        <?php if (!empty($errors)): ?>
-          <div class="alert alert-danger py-2 small mb-4" role="alert">
-            <ul class="mb-0 ps-3">
-              <?php foreach ($errors as $err): ?>
-                <li><?= e($err) ?></li>
-              <?php endforeach; ?>
-            </ul>
+      <?php if (!empty($errors)): ?>
+        <div class="alert alert-danger py-2 small mb-4 rounded-3 d-flex align-items-center gap-2" role="alert">
+          <i class="bi bi-exclamation-circle-fill fs-5 flex-shrink-0"></i>
+          <ul class="mb-0 ps-2">
+            <?php foreach ($errors as $err): ?>
+              <li><?= e($err) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!$hasOnlinePrinter): ?>
+        <div class="alert alert-warning py-3 small mb-4 rounded-3 d-flex align-items-center gap-3">
+          <i class="bi bi-exclamation-triangle-fill fs-3 text-warning flex-shrink-0"></i>
+          <div>
+            <strong>Printers are currently offline.</strong><br>
+            Please check with the shop counter staff or try again in a few moments.
           </div>
-        <?php endif; ?>
+        </div>
+      <?php endif; ?>
 
-        <?php if (!$hasOnlinePrinter): ?>
-          <div class="alert alert-warning py-3 small mb-4 d-flex align-items-center gap-2">
-            <i class="bi bi-exclamation-triangle-fill fs-4 text-warning"></i>
-            <div>
-              <strong>No printer is currently available.</strong><br>
-              All printers at this shop are currently offline. Please check with the counter staff or try again later.
-            </div>
+      <?php if (empty($shopPricing)): ?>
+        <div class="alert alert-danger py-3 small mb-4 rounded-3">
+          <i class="bi bi-x-circle-fill me-1"></i>
+          This shop has not configured any active printing rates yet.
+        </div>
+      <?php endif; ?>
+
+      <form method="POST" action="<?= APP_URL ?>/p/<?= e($shop['slug']) ?>" enctype="multipart/form-data" id="customerPrintForm">
+        <?= csrf_field() ?>
+        <input type="hidden" name="form_token" value="<?= e($currentFormToken) ?>">
+
+        <!-- STEP 1: Upload Document -->
+        <div class="mb-4">
+          <div class="step-heading">
+            <span class="step-badge-icon">1</span>
+            <span>Upload Your Document</span>
           </div>
-        <?php endif; ?>
 
-        <?php if (empty($shopPricing)): ?>
-          <div class="alert alert-danger py-3 small mb-4">
-            <i class="bi bi-x-circle-fill me-1"></i>
-            This shop has not configured any active printing rates yet.
+          <div class="dropzone-modern" id="customerDropzone">
+            <div class="dropzone-icon-circle">
+              <i class="bi bi-cloud-arrow-up-fill"></i>
+            </div>
+            <div class="fw-bold text-dark mb-1 fs-6">Tap to Choose File or Drop Here</div>
+            <div class="small text-muted mb-3">Supports PDF, JPG, JPEG, PNG (Max 25 MB)</div>
+            <button type="button" class="btn btn-outline-primary btn-sm px-4 rounded-pill fw-semibold">
+              <i class="bi bi-folder2-open me-1"></i> Browse File
+            </button>
+            <input type="file" name="document" id="customerFileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" class="d-none" required>
           </div>
-        <?php endif; ?>
 
-        <form method="POST" action="<?= APP_URL ?>/p/<?= e($shop['slug']) ?>" enctype="multipart/form-data" id="customerPrintForm">
-          <?= csrf_field() ?>
-          <input type="hidden" name="form_token" value="<?= e($currentFormToken) ?>">
-
-          <!-- STEP 1: Upload Document -->
-          <div class="mb-4">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <label class="form-label fw-bold text-dark mb-0">
-                <span class="badge bg-primary rounded-circle me-1">1</span> Select Document
-              </label>
-              <span class="small text-muted">Max 25 MB</span>
-            </div>
-
-            <div class="dropzone-upload" id="customerDropzone">
-              <i class="bi bi-cloud-arrow-up-fill text-primary display-4 d-block mb-2"></i>
-              <div class="fw-bold text-dark mb-1">Tap to browse or drop file here</div>
-              <div class="small text-muted mb-2">Supported formats: PDF, JPG, JPEG, PNG</div>
-              <button type="button" class="btn btn-outline-primary btn-sm px-3 rounded-pill">
-                <i class="bi bi-folder2-open me-1"></i> Choose File
-              </button>
-              <input type="file" name="document" id="customerFileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" class="d-none" required>
-            </div>
-
-            <!-- Selected File Information Display -->
-            <div id="filePreviewBox" class="p-3 bg-light rounded border mt-3 d-none align-items-center justify-content-between">
-              <div class="d-flex align-items-center gap-2 text-truncate">
-                <i class="bi bi-file-earmark-check-fill text-success fs-2"></i>
-                <div class="text-truncate">
-                  <div class="fw-bold text-dark text-truncate" id="previewFileName">document.pdf</div>
-                  <div class="small text-muted">
-                    <span id="previewFileType">PDF</span> • <span id="previewFileSize">0 MB</span>
-                  </div>
+          <!-- Selected File Preview Card -->
+          <div id="filePreviewBox" class="file-attached-card d-none">
+            <div class="d-flex align-items-center gap-3 text-truncate">
+              <div class="file-type-icon">
+                <i class="bi bi-file-earmark-pdf-fill"></i>
+              </div>
+              <div class="text-truncate">
+                <div class="fw-bold text-dark text-truncate" id="previewFileName">document.pdf</div>
+                <div class="small text-muted">
+                  <span class="badge bg-success-subtle text-success border border-success-subtle me-1" id="previewFileType">PDF</span>
+                  <span id="previewFileSize">0.00 MB</span>
                 </div>
               </div>
-              <span class="badge bg-success-subtle text-success border border-success-subtle">Attached</span>
+            </div>
+            <button type="button" id="btnRemoveFile" class="btn btn-sm btn-light border text-danger rounded-circle p-2" title="Remove File">
+              <i class="bi bi-trash3"></i>
+            </button>
+          </div>
+        </div>
+
+        <hr class="my-4 text-muted opacity-25">
+
+        <!-- STEP 2: Printing Preferences (Touch-Friendly Segmented Pills) -->
+        <div class="mb-4">
+          <div class="step-heading">
+            <span class="step-badge-icon">2</span>
+            <span>Choose Print Specifications</span>
+          </div>
+
+          <!-- Paper Size -->
+          <div class="mb-3">
+            <label class="option-group-label">Paper Size</label>
+            <div class="touch-pill-grid <?= count($availablePaperSizes) > 2 ? 'grid-3' : '' ?>">
+              <?php 
+                $defaultSizes = !empty($availablePaperSizes) ? $availablePaperSizes : ['A4'];
+                foreach ($defaultSizes as $idx => $size): 
+              ?>
+                <label class="touch-pill-option">
+                  <input type="radio" name="paper_size" value="<?= e($size) ?>" <?= $idx === 0 ? 'checked' : '' ?>>
+                  <div class="touch-pill-card">
+                    <span class="pill-icon"><i class="bi bi-file-earmark"></i></span>
+                    <span class="pill-title"><?= e($size) ?></span>
+                  </div>
+                </label>
+              <?php endforeach; ?>
             </div>
           </div>
 
-          <!-- STEP 2: Printing Preferences -->
-          <div class="mb-4">
-            <label class="form-label fw-bold text-dark mb-2">
-              <span class="badge bg-primary rounded-circle me-1">2</span> Printing Preferences
-            </label>
+          <!-- Color Mode -->
+          <div class="mb-3">
+            <label class="option-group-label">Color Mode</label>
+            <div class="touch-pill-grid">
+              <label class="touch-pill-option">
+                <input type="radio" name="color_mode" value="BW" checked>
+                <div class="touch-pill-card">
+                  <span class="pill-icon"><i class="bi bi-circle-half"></i></span>
+                  <span class="pill-title">Black & White</span>
+                  <span class="pill-sub">Standard</span>
+                </div>
+              </label>
 
-            <div class="row g-3">
-              <!-- Paper Size -->
-              <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Paper Size <span class="text-danger">*</span></label>
-                <select name="paper_size" id="paperSizeSelect" class="form-select" required>
-                  <?php if (empty($availablePaperSizes)): ?>
-                    <option value="A4">A4</option>
-                  <?php else: ?>
-                    <?php foreach ($availablePaperSizes as $size): ?>
-                      <option value="<?= e($size) ?>"><?= e($size) ?></option>
-                    <?php endforeach; ?>
-                  <?php endif; ?>
-                </select>
-              </div>
-
-              <!-- Color Mode -->
-              <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Color Mode <span class="text-danger">*</span></label>
-                <select name="color_mode" id="colorModeSelect" class="form-select" required>
-                  <?php if (empty($availableColorModes)): ?>
-                    <option value="BW">Black & White</option>
-                    <option value="COLOR">Full Color</option>
-                  <?php else: ?>
-                    <?php foreach ($availableColorModes as $mode): ?>
-                      <option value="<?= e($mode) ?>"><?= $mode === 'BW' ? 'Black & White' : 'Full Color' ?></option>
-                    <?php endforeach; ?>
-                  <?php endif; ?>
-                </select>
-              </div>
-
-              <!-- Side Mode -->
-              <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Sides <span class="text-danger">*</span></label>
-                <select name="side_mode" id="sideModeSelect" class="form-select" required>
-                  <?php if (empty($availableSideModes)): ?>
-                    <option value="single">Single Sided</option>
-                    <option value="double">Double Sided</option>
-                  <?php else: ?>
-                    <?php foreach ($availableSideModes as $side): ?>
-                      <option value="<?= e($side) ?>"><?= ucfirst(e($side)) ?> Sided</option>
-                    <?php endforeach; ?>
-                  <?php endif; ?>
-                </select>
-              </div>
-
-              <!-- Copies -->
-              <div class="col-6">
-                <label class="form-label small fw-semibold text-secondary">Copies <span class="text-danger">*</span></label>
-                <input type="number" name="copies" id="copiesInput" value="1" min="1" max="100" class="form-control" required>
-              </div>
+              <label class="touch-pill-option">
+                <input type="radio" name="color_mode" value="COLOR">
+                <div class="touch-pill-card">
+                  <span class="pill-icon text-warning"><i class="bi bi-palette-fill"></i></span>
+                  <span class="pill-title">Full Color</span>
+                  <span class="pill-sub">Vibrant</span>
+                </div>
+              </label>
             </div>
           </div>
 
-          <!-- STEP 3: Select Printer -->
-          <div class="mb-4">
-            <label class="form-label fw-bold text-dark mb-2">
-              <span class="badge bg-primary rounded-circle me-1">3</span> Select Counter Printer
-            </label>
-
-            <?php if (empty($printers)): ?>
-              <div class="p-3 bg-light rounded text-center text-muted small">
-                No physical printers are registered for this shop.
+          <!-- Sides Mode & Copies Row -->
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="option-group-label">Sides</label>
+              <div class="d-flex flex-column gap-2">
+                <label class="touch-pill-option">
+                  <input type="radio" name="side_mode" value="single" checked>
+                  <div class="touch-pill-card">
+                    <span class="pill-title">Single Sided</span>
+                  </div>
+                </label>
+                <label class="touch-pill-option">
+                  <input type="radio" name="side_mode" value="double">
+                  <div class="touch-pill-card">
+                    <span class="pill-title">Double Sided</span>
+                  </div>
+                </label>
               </div>
-            <?php else: ?>
-              <div class="list-group">
-                <?php foreach ($printers as $idx => $p): 
-                  $isOnline = in_array($p['status'], ['online', 'idle']);
-                ?>
-                  <label class="list-group-item d-flex align-items-center justify-content-between p-3 <?= !$isOnline ? 'bg-light text-muted' : '' ?>" style="cursor: <?= $isOnline ? 'pointer' : 'not-allowed' ?>;">
+            </div>
+
+            <div class="col-6">
+              <label class="option-group-label">Number of Copies</label>
+              <div class="stepper-copies-box">
+                <button type="button" class="stepper-btn" id="btnMinusCopies">-</button>
+                <input type="number" name="copies" id="copiesInput" value="1" min="1" max="100" class="stepper-input" required>
+                <button type="button" class="stepper-btn" id="btnPlusCopies">+</button>
+              </div>
+              <div class="form-text small text-muted text-center mt-1">1 to 100 sets</div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-4 text-muted opacity-25">
+
+        <!-- STEP 3: Printer Selection -->
+        <div class="mb-4">
+          <div class="step-heading">
+            <span class="step-badge-icon">3</span>
+            <span>Target Counter Printer</span>
+          </div>
+
+          <?php if (empty($printers)): ?>
+            <div class="p-3 bg-light rounded text-center text-muted small">
+              No printers are currently registered for this shop.
+            </div>
+          <?php else: ?>
+            <div class="printer-card-list">
+              <?php foreach ($printers as $idx => $p): 
+                $isOnline = in_array($p['status'], ['online', 'idle']);
+              ?>
+                <label class="printer-select-label">
+                  <input type="radio" name="printer_id" value="<?= $p['id'] ?>" 
+                         <?= ($isOnline && ($idx === 0 || !isset($firstSelectedPrinter))) ? ($firstSelectedPrinter = true ? 'checked' : '') : '' ?> 
+                         <?= !$isOnline ? 'disabled' : '' ?> required>
+                  <div class="printer-card <?= !$isOnline ? 'opacity-50' : '' ?>">
                     <div class="d-flex align-items-center gap-3">
-                      <input class="form-check-input flex-shrink-0" type="radio" name="printer_id" value="<?= $p['id'] ?>" <?= ($isOnline && ($idx === 0 || !isset($firstChecked))) ? ($firstChecked = true ? 'checked' : '') : '' ?> <?= !$isOnline ? 'disabled' : '' ?> required>
+                      <i class="bi bi-printer-fill fs-4 text-primary"></i>
                       <div>
-                        <div class="fw-semibold text-dark"><?= e($p['printer_name']) ?></div>
-                        <div class="small text-muted font-monospace"><?= e($p['printer_identifier'] ?? 'Standard Spooler') ?></div>
+                        <div class="fw-bold text-dark"><?= e($p['printer_name']) ?></div>
+                        <div class="small text-muted font-monospace"><?= e($p['printer_identifier'] ?? 'Main Hardware Spooler') ?></div>
                       </div>
                     </div>
-                    <span class="badge-status <?= e($p['status']) ?>">
-                      <?= ucfirst(e($p['status'])) ?>
-                    </span>
-                  </label>
-                <?php endforeach; ?>
-              </div>
-            <?php endif; ?>
-          </div>
-
-          <!-- STEP 4: Live Estimated Price Summary -->
-          <div class="pricing-preview-box mb-4">
-            <div class="d-flex align-items-center justify-content-between mb-1">
-              <span class="small text-muted">Configured Rate:</span>
-              <span class="fw-semibold text-dark" id="liveUnitRateDisplay">Calculating...</span>
+                    <div>
+                      <?php if ($isOnline): ?>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small d-flex align-items-center gap-1">
+                          <span class="pulse-dot"></span> Ready
+                        </span>
+                      <?php else: ?>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 small">Offline</span>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </label>
+              <?php endforeach; ?>
             </div>
-            <div class="d-flex align-items-center justify-content-between">
-              <div>
-                <span class="fw-bold text-dark d-block">Estimated Total:</span>
-                <span class="small text-muted" id="priceNote">Server will verify exact page count on submit</span>
-              </div>
-              <span class="fw-bold fs-4 text-primary" id="livePriceDisplay">₹0.00</span>
-            </div>
-          </div>
+          <?php endif; ?>
+        </div>
 
-          <!-- Submit Order Button -->
-          <button type="submit" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" <?= (!$hasOnlinePrinter || empty($shopPricing)) ? 'disabled' : 'disabled' ?>>
-            <i class="bi bi-arrow-right-circle-fill me-2"></i> Review & Prepare Print Order
+        <!-- Price Breakdown Card -->
+        <div class="price-breakdown-card mb-4">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="small text-muted fw-semibold">Unit Rate:</span>
+            <span class="fw-bold text-dark" id="liveUnitRateDisplay">Calculating...</span>
+          </div>
+          <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+            <div>
+              <span class="fw-bold text-dark fs-6 d-block">Estimated Total:</span>
+              <span class="small text-muted">Verified by server on upload</span>
+            </div>
+            <span class="fw-bold fs-3 text-primary" id="livePriceDisplay">₹0.00</span>
+          </div>
+        </div>
+
+        <!-- Inline Submit Button (for Desktop / Tablets) -->
+        <div class="d-none d-sm-block">
+          <button type="submit" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" disabled>
+            <i class="bi bi-arrow-right-circle-fill me-2"></i> Review & Proceed to Payment
           </button>
+        </div>
 
-        </form>
-
-      </div>
+      </form>
     </div>
 
-    <!-- Shop Information Footer -->
-    <div class="text-center text-muted small">
+    <!-- Shop Counter Footer -->
+    <div class="text-center text-muted small pb-4">
       <div class="fw-semibold text-dark"><?= e($shop['name']) ?></div>
-      <div><i class="bi bi-geo-alt me-1"></i><?= e($shop['address'] ?? 'Counter') ?> • <i class="bi bi-telephone me-1"></i><?= e($shop['phone']) ?></div>
+      <div><i class="bi bi-geo-alt me-1"></i><?= e($shop['address'] ?? 'Shop Counter') ?> • <i class="bi bi-telephone me-1"></i><?= e($shop['phone']) ?></div>
       <div class="mt-2 text-secondary">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
     </div>
 
   </main>
 
+  <!-- Mobile Sticky Bottom Action Bar -->
+  <div class="sticky-mobile-bar d-sm-none">
+    <div class="sticky-mobile-bar-inner">
+      <div class="sticky-price-display">
+        <span class="price-label">Estimated Total</span>
+        <span class="price-amount" id="stickyPriceDisplay">₹0.00</span>
+      </div>
+      <button type="button" id="btnSubmitOrderSticky" class="btn-checkout-sticky" disabled>
+        <span>Review Order</span>
+        <i class="bi bi-arrow-right-short fs-5"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5.3 JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Custom App JS -->
   <script src="<?= asset_url('assets/js/app.js') ?>"></script>
 </body>
 </html>

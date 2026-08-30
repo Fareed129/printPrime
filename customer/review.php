@@ -48,117 +48,137 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title><?= e($pageTitle) ?></title>
+  
+  <!-- Bootstrap 5.3 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  
+  <!-- Custom Modern Design System -->
   <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
+  
   <!-- Razorpay Official Checkout SDK -->
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
-<body class="bg-light d-flex align-items-center justify-content-center" style="min-height: 100vh; padding: 25px 12px;">
+<body class="customer-app-shell d-flex align-items-center justify-content-center" style="padding: 24px 12px 60px;">
 
-  <div class="container" style="max-width: 540px;">
+  <div class="container" style="max-width: 520px;">
     
-    <div class="card card-pp shadow-sm p-4 mb-3">
+    <div class="receipt-card mb-4">
       
       <!-- Review Header -->
-      <div class="text-center mb-4">
+      <div class="text-center mb-3">
         <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 fw-bold text-uppercase mb-2" style="font-size: 0.75rem;">
           <i class="bi bi-shop me-1"></i> <?= e($job['shop_name']) ?>
         </span>
-        <h4 class="fw-bold text-dark mb-1">Order Review & Payment</h4>
-        <p class="text-muted small mb-0">Please verify your printing specifications and complete payment.</p>
+        <h3 class="fw-bold text-dark mb-1 fs-4">Order Summary & Checkout</h3>
+        <p class="text-muted small mb-0">Verify specifications and complete instant counter payment.</p>
       </div>
 
       <!-- Public Order Token Badge -->
-      <div class="p-3 bg-light rounded-3 border text-center mb-4">
-        <span class="text-muted small d-block text-uppercase fw-semibold">Public Order Token</span>
-        <span class="fw-mono fw-bold fs-3 text-primary"><?= e($job['public_token']) ?></span>
+      <div class="p-3 bg-light rounded-3 border text-center mb-3">
+        <span class="text-muted small d-block text-uppercase fw-semibold" style="letter-spacing: 0.05em; font-size: 0.72rem;">Order Token</span>
+        <span class="font-heading fw-bold fs-2 text-primary tracking-wide"><?= e($job['public_token']) ?></span>
       </div>
 
       <!-- Specifications Breakdown List -->
-      <div class="list-group list-group-flush small mb-4">
+      <div class="list-group list-group-flush small mb-3">
         
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-file-earmark-text me-1"></i> Document:</span>
-          <span class="fw-semibold text-dark text-truncate" style="max-width: 260px;" title="<?= e($job['file_name']) ?>">
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-file-earmark-text text-primary me-2"></i>Document:</span>
+          <span class="fw-semibold text-dark text-truncate" style="max-width: 240px;" title="<?= e($job['file_name']) ?>">
             <?= e($job['file_name']) ?>
           </span>
         </div>
 
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-file-earmark-break me-1"></i> Pages Verified:</span>
-          <span class="fw-bold text-dark badge bg-light text-secondary border fs-6">
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-file-earmark-break text-primary me-2"></i>Pages Verified:</span>
+          <span class="fw-bold text-dark badge bg-light text-secondary border px-2 py-1">
             <?= $job['page_count'] ?> <?= $job['page_count'] > 1 ? 'pages' : 'page' ?>
           </span>
         </div>
 
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-printer me-1"></i> Target Printer:</span>
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-printer text-primary me-2"></i>Target Printer:</span>
           <span class="fw-semibold text-dark d-flex align-items-center gap-1">
             <?= e($job['printer_name'] ?? 'Counter Spooler') ?>
-            <span class="badge-status <?= e($job['printer_status'] ?? 'online') ?> ms-1" style="font-size: 0.7rem;">
+            <span class="badge-status <?= e($job['printer_status'] ?? 'online') ?> ms-1" style="font-size: 0.65rem;">
               <?= ucfirst(e($job['printer_status'] ?? 'online')) ?>
             </span>
           </span>
         </div>
 
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-aspect-ratio me-1"></i> Paper Size:</span>
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-aspect-ratio text-primary me-2"></i>Paper Size:</span>
           <span class="fw-semibold text-dark"><?= e($job['paper_size']) ?></span>
         </div>
 
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-palette me-1"></i> Color Mode:</span>
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-palette text-primary me-2"></i>Color Mode:</span>
           <span class="fw-semibold text-dark"><?= $job['color_mode'] === 'COLOR' ? 'Full Color' : 'Black & White' ?></span>
         </div>
 
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-layers me-1"></i> Sides:</span>
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-layers text-primary me-2"></i>Sides:</span>
           <span class="fw-semibold text-dark"><?= ucfirst(e($job['side_mode'])) ?> Sided</span>
         </div>
 
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-          <span class="text-muted"><i class="bi bi-copy me-1"></i> Copies:</span>
+        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
+          <span class="text-muted"><i class="bi bi-copy text-primary me-2"></i>Copies:</span>
           <span class="fw-semibold text-dark"><?= $job['copies'] ?> <?= $job['copies'] > 1 ? 'copies' : 'copy' ?></span>
-        </div>
-
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-3 mt-1 border-top border-2">
-          <div>
-            <span class="fw-bold text-dark fs-6 d-block">Total Amount:</span>
-            <span class="small text-muted">(<?= $job['page_count'] ?> pgs × <?= $job['copies'] ?> copies)</span>
-          </div>
-          <span class="fw-bold fs-3 text-success"><?= format_currency($job['amount']) ?></span>
         </div>
 
       </div>
 
+      <!-- Perforated Digital Receipt Cut -->
+      <div class="receipt-perforated-line"></div>
+
+      <!-- Total Amount Display -->
+      <div class="d-flex justify-content-between align-items-center mb-4 pt-1">
+        <div>
+          <span class="fw-bold text-dark fs-5 d-block">Grand Total</span>
+          <span class="small text-muted">(<?= $job['page_count'] ?> pgs × <?= $job['copies'] ?> copies)</span>
+        </div>
+        <span class="fw-bold fs-2 text-success font-heading"><?= format_currency($job['amount']) ?></span>
+      </div>
+
       <!-- Payment Status Alert -->
-      <div id="paymentAlertBox" class="alert alert-warning py-2 px-3 small d-flex align-items-center gap-2 mb-4">
+      <div id="paymentAlertBox" class="alert alert-warning py-2 px-3 small d-flex align-items-center gap-2 mb-4 rounded-3">
         <i class="bi bi-hourglass-split fs-5 text-warning flex-shrink-0"></i>
         <div id="paymentAlertText">
-          <strong>Status: Payment Pending</strong><br>
-          Your order is ready. Click below to complete secure payment via Razorpay.
+          <strong>Ready for Payment</strong><br>
+          Tap below to pay securely via UPI, GPay, PhonePe, Cards, or NetBanking.
         </div>
       </div>
 
       <!-- Proceed to Payment Action Button -->
       <div class="d-grid gap-2">
-        <button type="button" id="btnPayNow" class="btn btn-primary btn-lg fw-bold py-3 shadow-sm">
-          <i class="bi bi-credit-card-2-front-fill me-2"></i> Pay <?= format_currency($job['amount']) ?>
+        <button type="button" id="btnPayNow" class="btn btn-primary btn-lg fw-bold py-3 shadow rounded-3 fs-6">
+          <i class="bi bi-shield-lock-fill me-2"></i> Pay <?= format_currency($job['amount']) ?> & Print
         </button>
-        <a href="<?= APP_URL ?>/p/<?= e($job['shop_slug']) ?>" class="btn btn-outline-secondary btn-sm py-2">
-          <i class="bi bi-plus-circle me-1"></i> Upload Another Document
+        <a href="<?= APP_URL ?>/p/<?= e($job['shop_slug']) ?>" class="btn btn-outline-secondary btn-sm py-2 rounded-3">
+          <i class="bi bi-arrow-left me-1"></i> Change Options / Re-upload
         </a>
+      </div>
+
+      <div class="d-flex align-items-center justify-content-center gap-3 mt-4 text-muted small border-top pt-3">
+        <span><i class="bi bi-shield-check text-success me-1"></i>256-Bit SSL</span>
+        <span>•</span>
+        <span><i class="bi bi-lightning-charge-fill text-warning me-1"></i>Instant Print</span>
+        <span>•</span>
+        <span><i class="bi bi-qr-code text-primary me-1"></i>UPI Enabled</span>
       </div>
 
     </div>
 
     <!-- Shop Footer -->
     <div class="text-center text-muted small">
-      <div><?= e($job['shop_name']) ?> • <i class="bi bi-telephone me-1"></i><?= e($job['shop_phone']) ?></div>
-      <div class="mt-1">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
+      <div class="fw-semibold text-dark"><?= e($job['shop_name']) ?></div>
+      <div><i class="bi bi-geo-alt me-1"></i><?= e($job['shop_address'] ?? 'Shop Counter') ?> • <i class="bi bi-telephone me-1"></i><?= e($job['shop_phone']) ?></div>
+      <div class="mt-1 text-secondary">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
     </div>
 
   </div>
@@ -170,7 +190,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
     const alertText = document.getElementById('paymentAlertText');
 
     function setAlert(type, message, isHtml = false) {
-      alertBox.className = `alert alert-${type} py-2 px-3 small d-flex align-items-center gap-2 mb-4`;
+      alertBox.className = `alert alert-${type} py-2 px-3 small d-flex align-items-center gap-2 mb-4 rounded-3`;
       const iconClass = type === 'danger' ? 'bi-x-circle-fill text-danger' : (type === 'success' ? 'bi-check-circle-fill text-success' : 'bi-hourglass-split text-warning');
       alertBox.querySelector('i').className = `bi ${iconClass} fs-5 flex-shrink-0`;
       if (isHtml) {
@@ -185,7 +205,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
     btnPayNow.addEventListener('click', async () => {
       btnPayNow.disabled = true;
       const originalBtnHtml = btnPayNow.innerHTML;
-      btnPayNow.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Initializing Gateway...';
+      btnPayNow.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Preparing Gateway...';
 
       try {
         // Step 1: Create or Reuse Razorpay Order on Server
@@ -206,12 +226,11 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
         }
 
         if (!orderData.success) {
-          setAlert('danger', orderData.error || 'Failed to initialize payment.');
+          setAlert('danger', orderData.error || 'Failed to initialize payment gateway.');
           btnPayNow.disabled = false;
           btnPayNow.innerHTML = originalBtnHtml;
           return;
         }
-
 
         // Step 2: Open Razorpay Checkout Modal
         const options = {
@@ -222,13 +241,12 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
           description: 'Print Order #' + orderData.token,
           order_id: orderData.order_id,
           prefill: {
-            name: 'Customer',
+            name: 'Counter Customer',
             email: 'customer@primeprint.local',
             contact: '9876543210'
           },
           theme: { color: '#2563eb' },
           handler: async function (response) {
-
             btnPayNow.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Payment...';
             setAlert('info', 'Verifying transaction signature...');
 
@@ -247,7 +265,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 
               const verifyData = await verifyResponse.json();
               if (verifyData.success) {
-                setAlert('success', 'Payment verified successfully! Redirecting...');
+                setAlert('success', 'Payment verified successfully! Redirecting to live print tracker...');
                 window.location.href = verifyData.redirect_url;
               } else {
                 setAlert('danger', verifyData.error || 'Payment signature verification failed.');
@@ -263,7 +281,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
           modal: {
             ondismiss: function () {
               retryCount++;
-              setAlert('warning', '<strong>Payment Cancelled</strong><br>Checkout was closed. You can retry payment whenever you are ready.', true);
+              setAlert('warning', '<strong>Payment Cancelled</strong><br>Checkout was closed. Tap Pay when ready to retry.', true);
               btnPayNow.disabled = false;
               btnPayNow.innerHTML = originalBtnHtml;
             }
@@ -271,7 +289,6 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
         };
 
         if (typeof Razorpay === 'undefined') {
-          // If offline/mock test mode
           alert('Razorpay Checkout SDK is operating in mock test mode. Simulating client callback.');
           return;
         }
@@ -295,6 +312,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
     });
   </script>
 
+  <!-- Bootstrap 5.3 JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
