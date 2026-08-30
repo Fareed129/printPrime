@@ -155,10 +155,6 @@ $pageTitle = 'Order Tracker #' . $job['public_token'] . ' — ' . APP_NAME;
           <span class="fw-semibold text-dark"><?= $job['page_count'] ?> pages × <?= $job['copies'] ?> <?= $job['copies'] > 1 ? 'copies' : 'copy' ?></span>
         </div>
         <div class="list-group-item bg-transparent d-flex justify-content-between px-2 py-2">
-          <span class="text-muted">Target Printer:</span>
-          <span class="fw-semibold text-dark"><?= e($job['printer_name'] ?? 'Counter Spooler') ?></span>
-        </div>
-        <div class="list-group-item bg-transparent d-flex justify-content-between px-2 py-2">
           <span class="text-muted">Format:</span>
           <span class="badge bg-white text-dark border"><?= e($job['paper_size']) ?> • <?= e($job['color_mode']) ?> • <?= e($job['side_mode']) ?></span>
         </div>
@@ -181,11 +177,13 @@ $pageTitle = 'Order Tracker #' . $job['public_token'] . ' — ' . APP_NAME;
 
     </div>
 
-    <div class="text-center text-muted small pb-4">
-      <div>Need assistance? Visit counter at <strong><?= e($job['shop_name']) ?></strong></div>
+    <!-- Clean Compact Shop Footer -->
+    <footer class="shop-counter-footer">
+      <div class="fw-bold text-dark"><?= e($job['shop_name']) ?></div>
       <div><?= e($job['shop_address'] ?? '') ?></div>
-      <div class="mt-1 text-secondary">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
-    </div>
+      <div class="mt-1 text-muted" style="font-size: 0.7rem;">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
+    </footer>
+
 
   </div>
 

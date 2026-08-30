@@ -95,24 +95,15 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
         </div>
 
         <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
-          <span class="text-muted"><i class="bi bi-file-earmark-break text-primary me-2"></i>Pages Verified:</span>
+          <span class="text-muted"><i class="bi bi-file-earmark-break text-primary me-2"></i>Pages:</span>
           <span class="fw-bold text-dark badge bg-light text-secondary border px-2 py-1">
             <?= $job['page_count'] ?> <?= $job['page_count'] > 1 ? 'pages' : 'page' ?>
           </span>
         </div>
 
         <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
-          <span class="text-muted"><i class="bi bi-printer text-primary me-2"></i>Target Printer:</span>
-          <span class="fw-semibold text-dark d-flex align-items-center gap-1">
-            <?= e($job['printer_name'] ?? 'Counter Spooler') ?>
-            <span class="badge-status <?= e($job['printer_status'] ?? 'online') ?> ms-1" style="font-size: 0.65rem;">
-              <?= ucfirst(e($job['printer_status'] ?? 'online')) ?>
-            </span>
-          </span>
-        </div>
-
-        <div class="list-group-item d-flex justify-content-between align-items-center px-0 py-2 border-bottom-0">
           <span class="text-muted"><i class="bi bi-aspect-ratio text-primary me-2"></i>Paper Size:</span>
+
           <span class="fw-semibold text-dark"><?= e($job['paper_size']) ?></span>
         </div>
 

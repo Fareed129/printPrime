@@ -30,19 +30,17 @@ $availablePaperSizes = array_values(array_unique(array_column($shopPricing, 'pap
 $availableColorModes = array_values(array_unique(array_column($shopPricing, 'color_mode')));
 $availableSideModes  = array_values(array_unique(array_column($shopPricing, 'side_mode')));
 
-// 2. Fetch physical printers belonging strictly to this shop
+// 2. Fetch default printer for shop (managed automatically by PrimePrint agent)
 $stmt = $db->prepare("
-    SELECT id, printer_name, printer_identifier, status 
+    SELECT id, printer_name, status 
     FROM printers 
     WHERE shop_id = :shop_id 
-    ORDER BY (status IN ('online', 'idle')) DESC, printer_name ASC
+    ORDER BY (status IN ('online', 'idle')) DESC, id ASC 
+    LIMIT 1
 ");
 $stmt->execute([':shop_id' => $shop['id']]);
-$printers = $stmt->fetchAll();
-
-// Check if there is at least one online printer
-$onlinePrinters = array_filter($printers, fn($p) => in_array($p['status'], ['online', 'idle']));
-$hasOnlinePrinter = count($onlinePrinters) > 0;
+$defaultPrinter = $stmt->fetch();
+$autoPrinterId = $defaultPrinter ? (int)$defaultPrinter['id'] : null;
 
 $errors = [];
 
@@ -81,26 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $colorMode = trim($_POST['color_mode'] ?? 'BW');
     $sideMode  = trim($_POST['side_mode'] ?? 'single');
     $copies    = (int)($_POST['copies'] ?? 1);
-    $printerId = (int)($_POST['printer_id'] ?? 0);
 
     // Validate Copies (Min: 1, Max: 100)
     if ($copies < 1 || $copies > 100) {
         $errors[] = 'Copies must be a valid number between 1 and 100.';
-    }
-
-    // Validate Printer Selection (Server-Side Shop Isolation)
-    if ($printerId <= 0) {
-        $errors[] = 'Please select a printer for your order.';
-    } else {
-        $stmt = $db->prepare("SELECT id, printer_name, status FROM printers WHERE id = :id AND shop_id = :shop_id LIMIT 1");
-        $stmt->execute([':id' => $printerId, ':shop_id' => $shop['id']]);
-        $selectedPrinter = $stmt->fetch();
-
-        if (!$selectedPrinter) {
-            $errors[] = 'Invalid printer selected.';
-        } elseif (!in_array($selectedPrinter['status'], ['online', 'idle'])) {
-            $errors[] = 'The selected printer is currently offline. Please choose an online printer.';
-        }
     }
 
     // Validate Document Upload
@@ -185,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt->execute([
                                 ':public_token'     => $publicToken,
                                 ':shop_id'          => $shop['id'],
-                                ':printer_id'       => $printerId,
+                                ':printer_id'       => $autoPrinterId,
                                 ':file_name'        => $originalName,
                                 ':stored_file_name' => $storedFileName,
                                 ':file_path'        => $destination,
@@ -249,34 +231,13 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 
   <!-- Mobile Hero Header -->
   <header class="customer-hero-header">
-    <div class="container" style="max-width: 560px;">
-      
+    <div style="max-width: 480px; margin: 0 auto;">
       <div class="shop-counter-badge">
         <i class="bi bi-shop"></i>
         <span><?= e($shop['name']) ?></span>
       </div>
-
-      <h2 class="fw-bold text-white mb-1 fs-3">Self-Service Counter Print</h2>
-      <p class="text-white-50 small mb-0">Upload document, choose options, and print instantly.</p>
-
-      <!-- 3-Step Progress Indicator -->
-      <div class="customer-stepper">
-        <div class="step-item active">
-          <span class="step-num">1</span>
-          <span>Upload</span>
-        </div>
-        <span class="step-divider"></span>
-        <div class="step-item">
-          <span class="step-num">2</span>
-          <span>Options</span>
-        </div>
-        <span class="step-divider"></span>
-        <div class="step-item">
-          <span class="step-num">3</span>
-          <span>Print</span>
-        </div>
-      </div>
-
+      <h1 class="fw-bold text-white mb-1 fs-4">Counter Self-Service Print</h1>
+      <p class="text-white-50 small mb-0">Upload your file, set options & collect your prints</p>
     </div>
   </header>
 
@@ -286,8 +247,8 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
     <div class="customer-card">
 
       <?php if (!empty($errors)): ?>
-        <div class="alert alert-danger py-2 small mb-4 rounded-3 d-flex align-items-center gap-2" role="alert">
-          <i class="bi bi-exclamation-circle-fill fs-5 flex-shrink-0"></i>
+        <div class="alert alert-danger py-2 px-3 small mb-3 rounded-3 d-flex align-items-center gap-2" role="alert">
+          <i class="bi bi-exclamation-circle-fill flex-shrink-0"></i>
           <ul class="mb-0 ps-2">
             <?php foreach ($errors as $err): ?>
               <li><?= e($err) ?></li>
@@ -296,18 +257,8 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
         </div>
       <?php endif; ?>
 
-      <?php if (!$hasOnlinePrinter): ?>
-        <div class="alert alert-warning py-3 small mb-4 rounded-3 d-flex align-items-center gap-3">
-          <i class="bi bi-exclamation-triangle-fill fs-3 text-warning flex-shrink-0"></i>
-          <div>
-            <strong>Printers are currently offline.</strong><br>
-            Please check with the shop counter staff or try again in a few moments.
-          </div>
-        </div>
-      <?php endif; ?>
-
       <?php if (empty($shopPricing)): ?>
-        <div class="alert alert-danger py-3 small mb-4 rounded-3">
+        <div class="alert alert-danger py-2 px-3 small mb-3 rounded-3">
           <i class="bi bi-x-circle-fill me-1"></i>
           This shop has not configured any active printing rates yet.
         </div>
@@ -318,19 +269,19 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
         <input type="hidden" name="form_token" value="<?= e($currentFormToken) ?>">
 
         <!-- STEP 1: Upload Document -->
-        <div class="mb-4">
+        <div class="mb-3">
           <div class="step-heading">
             <span class="step-badge-icon">1</span>
-            <span>Upload Your Document</span>
+            <span>Select Document to Print</span>
           </div>
 
           <div class="dropzone-modern" id="customerDropzone">
             <div class="dropzone-icon-circle">
               <i class="bi bi-cloud-arrow-up-fill"></i>
             </div>
-            <div class="fw-bold text-dark mb-1 fs-6">Tap to Choose File or Drop Here</div>
-            <div class="small text-muted mb-3">Supports PDF, JPG, JPEG, PNG (Max 25 MB)</div>
-            <button type="button" class="btn btn-outline-primary btn-sm px-4 rounded-pill fw-semibold">
+            <div class="fw-bold text-dark mb-1 fs-6">Tap to Choose Document</div>
+            <div class="small text-muted mb-2">Supports PDF, JPG, JPEG, PNG (Max 25 MB)</div>
+            <button type="button" class="btn btn-outline-primary btn-sm px-3 rounded-pill fw-semibold">
               <i class="bi bi-folder2-open me-1"></i> Browse File
             </button>
             <input type="file" name="document" id="customerFileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" class="d-none" required>
@@ -338,37 +289,37 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 
           <!-- Selected File Preview Card -->
           <div id="filePreviewBox" class="file-attached-card d-none">
-            <div class="d-flex align-items-center gap-3 text-truncate">
+            <div class="d-flex align-items-center gap-2 text-truncate">
               <div class="file-type-icon">
-                <i class="bi bi-file-earmark-pdf-fill"></i>
+                <i class="bi bi-file-earmark-check-fill"></i>
               </div>
               <div class="text-truncate">
-                <div class="fw-bold text-dark text-truncate" id="previewFileName">document.pdf</div>
-                <div class="small text-muted">
+                <div class="fw-bold text-dark text-truncate small" id="previewFileName">document.pdf</div>
+                <div class="small text-muted" style="font-size: 0.72rem;">
                   <span class="badge bg-success-subtle text-success border border-success-subtle me-1" id="previewFileType">PDF</span>
                   <span id="previewFileSize">0.00 MB</span>
                 </div>
               </div>
             </div>
-            <button type="button" id="btnRemoveFile" class="btn btn-sm btn-light border text-danger rounded-circle p-2" title="Remove File">
+            <button type="button" id="btnRemoveFile" class="btn btn-sm btn-light border text-danger rounded-circle p-1" title="Remove File" style="width: 32px; height: 32px;">
               <i class="bi bi-trash3"></i>
             </button>
           </div>
         </div>
 
-        <hr class="my-4 text-muted opacity-25">
+        <hr class="my-3 text-muted opacity-25">
 
-        <!-- STEP 2: Printing Preferences (Touch-Friendly Segmented Pills) -->
-        <div class="mb-4">
+        <!-- STEP 2: Printing Preferences -->
+        <div class="mb-3">
           <div class="step-heading">
             <span class="step-badge-icon">2</span>
-            <span>Choose Print Specifications</span>
+            <span>Printing Preferences</span>
           </div>
 
           <!-- Paper Size -->
           <div class="mb-3">
             <label class="option-group-label">Paper Size</label>
-            <div class="touch-pill-grid <?= count($availablePaperSizes) > 2 ? 'grid-3' : '' ?>">
+            <div class="touch-pill-row">
               <?php 
                 $defaultSizes = !empty($availablePaperSizes) ? $availablePaperSizes : ['A4'];
                 foreach ($defaultSizes as $idx => $size): 
@@ -387,7 +338,7 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
           <!-- Color Mode -->
           <div class="mb-3">
             <label class="option-group-label">Color Mode</label>
-            <div class="touch-pill-grid">
+            <div class="touch-pill-row">
               <label class="touch-pill-option">
                 <input type="radio" name="color_mode" value="BW" checked>
                 <div class="touch-pill-card">
@@ -408,101 +359,56 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
             </div>
           </div>
 
-          <!-- Sides Mode & Copies Row -->
-          <div class="row g-3">
-            <div class="col-6">
-              <label class="option-group-label">Sides</label>
-              <div class="d-flex flex-column gap-2">
-                <label class="touch-pill-option">
-                  <input type="radio" name="side_mode" value="single" checked>
-                  <div class="touch-pill-card">
-                    <span class="pill-title">Single Sided</span>
-                  </div>
-                </label>
-                <label class="touch-pill-option">
-                  <input type="radio" name="side_mode" value="double">
-                  <div class="touch-pill-card">
-                    <span class="pill-title">Double Sided</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div class="col-6">
-              <label class="option-group-label">Number of Copies</label>
-              <div class="stepper-copies-box">
-                <button type="button" class="stepper-btn" id="btnMinusCopies">-</button>
-                <input type="number" name="copies" id="copiesInput" value="1" min="1" max="100" class="stepper-input" required>
-                <button type="button" class="stepper-btn" id="btnPlusCopies">+</button>
-              </div>
-              <div class="form-text small text-muted text-center mt-1">1 to 100 sets</div>
+          <!-- Sides Mode -->
+          <div class="mb-3">
+            <label class="option-group-label">Sides</label>
+            <div class="touch-pill-row">
+              <label class="touch-pill-option">
+                <input type="radio" name="side_mode" value="single" checked>
+                <div class="touch-pill-card">
+                  <span class="pill-icon"><i class="bi bi-file-text"></i></span>
+                  <span class="pill-title">Single Sided</span>
+                </div>
+              </label>
+              <label class="touch-pill-option">
+                <input type="radio" name="side_mode" value="double">
+                <div class="touch-pill-card">
+                  <span class="pill-icon"><i class="bi bi-layers-half"></i></span>
+                  <span class="pill-title">Double Sided</span>
+                </div>
+              </label>
             </div>
           </div>
-        </div>
 
-        <hr class="my-4 text-muted opacity-25">
-
-        <!-- STEP 3: Printer Selection -->
-        <div class="mb-4">
-          <div class="step-heading">
-            <span class="step-badge-icon">3</span>
-            <span>Target Counter Printer</span>
+          <!-- Copies Stepper -->
+          <div class="mb-2">
+            <label class="option-group-label">Number of Copies</label>
+            <div class="stepper-copies-box">
+              <button type="button" class="stepper-btn" id="btnMinusCopies">-</button>
+              <input type="number" name="copies" id="copiesInput" value="1" min="1" max="100" class="stepper-input" required>
+              <button type="button" class="stepper-btn" id="btnPlusCopies">+</button>
+            </div>
+            <div class="text-muted text-center mt-1" style="font-size: 0.72rem;">Min: 1 set • Max: 100 sets</div>
           </div>
-
-          <?php if (empty($printers)): ?>
-            <div class="p-3 bg-light rounded text-center text-muted small">
-              No printers are currently registered for this shop.
-            </div>
-          <?php else: ?>
-            <div class="printer-card-list">
-              <?php foreach ($printers as $idx => $p): 
-                $isOnline = in_array($p['status'], ['online', 'idle']);
-              ?>
-                <label class="printer-select-label">
-                  <input type="radio" name="printer_id" value="<?= $p['id'] ?>" 
-                         <?= ($isOnline && ($idx === 0 || !isset($firstSelectedPrinter))) ? ($firstSelectedPrinter = true ? 'checked' : '') : '' ?> 
-                         <?= !$isOnline ? 'disabled' : '' ?> required>
-                  <div class="printer-card <?= !$isOnline ? 'opacity-50' : '' ?>">
-                    <div class="d-flex align-items-center gap-3">
-                      <i class="bi bi-printer-fill fs-4 text-primary"></i>
-                      <div>
-                        <div class="fw-bold text-dark"><?= e($p['printer_name']) ?></div>
-                        <div class="small text-muted font-monospace"><?= e($p['printer_identifier'] ?? 'Main Hardware Spooler') ?></div>
-                      </div>
-                    </div>
-                    <div>
-                      <?php if ($isOnline): ?>
-                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small d-flex align-items-center gap-1">
-                          <span class="pulse-dot"></span> Ready
-                        </span>
-                      <?php else: ?>
-                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 small">Offline</span>
-                      <?php endif; ?>
-                    </div>
-                  </div>
-                </label>
-              <?php endforeach; ?>
-            </div>
-          <?php endif; ?>
         </div>
 
         <!-- Price Breakdown Card -->
-        <div class="price-breakdown-card mb-4">
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="small text-muted fw-semibold">Unit Rate:</span>
-            <span class="fw-bold text-dark" id="liveUnitRateDisplay">Calculating...</span>
+        <div class="price-breakdown-card mb-3">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <span class="text-muted fw-semibold" style="font-size: 0.75rem;">Configured Rate:</span>
+            <span class="fw-bold text-dark" id="liveUnitRateDisplay" style="font-size: 0.85rem;">Calculating...</span>
           </div>
           <div class="d-flex align-items-center justify-content-between pt-2 border-top">
             <div>
-              <span class="fw-bold text-dark fs-6 d-block">Estimated Total:</span>
-              <span class="small text-muted">Verified by server on upload</span>
+              <span class="fw-bold text-dark fs-6 d-block">Estimated Total</span>
+              <span class="text-muted" style="font-size: 0.7rem;">Verified on file upload</span>
             </div>
-            <span class="fw-bold fs-3 text-primary" id="livePriceDisplay">₹0.00</span>
+            <span class="fw-bold fs-4 text-primary" id="livePriceDisplay">₹0.00</span>
           </div>
         </div>
 
-        <!-- Inline Submit Button (for Desktop / Tablets) -->
-        <div class="d-none d-sm-block">
+        <!-- Inline Submit Button (Desktop / Tablets) -->
+        <div class="d-none d-sm-block mt-3">
           <button type="submit" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" disabled>
             <i class="bi bi-arrow-right-circle-fill me-2"></i> Review & Proceed to Payment
           </button>
@@ -511,12 +417,12 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
       </form>
     </div>
 
-    <!-- Shop Counter Footer -->
-    <div class="text-center text-muted small pb-4">
-      <div class="fw-semibold text-dark"><?= e($shop['name']) ?></div>
-      <div><i class="bi bi-geo-alt me-1"></i><?= e($shop['address'] ?? 'Shop Counter') ?> • <i class="bi bi-telephone me-1"></i><?= e($shop['phone']) ?></div>
-      <div class="mt-2 text-secondary">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
-    </div>
+    <!-- Clean Compact Shop Footer -->
+    <footer class="shop-counter-footer">
+      <div class="fw-bold text-dark"><?= e($shop['name']) ?></div>
+      <div><?= e($shop['address'] ?? '') ?><?php if (!empty($shop['phone'])): ?> • <i class="bi bi-telephone me-1"></i><?= e($shop['phone']) ?><?php endif; ?></div>
+      <div class="mt-1 text-muted" style="font-size: 0.7rem;">&copy; <?= date('Y') ?> PrimePrint Cloud SaaS</div>
+    </footer>
 
   </main>
 
@@ -528,7 +434,7 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
         <span class="price-amount" id="stickyPriceDisplay">₹0.00</span>
       </div>
       <button type="button" id="btnSubmitOrderSticky" class="btn-checkout-sticky" disabled>
-        <span>Review Order</span>
+        <span>Review & Pay</span>
         <i class="bi bi-arrow-right-short fs-5"></i>
       </button>
     </div>

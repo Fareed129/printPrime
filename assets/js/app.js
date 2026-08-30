@@ -192,11 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
-    const selectedPrinter = document.querySelector('input[name="printer_id"]:checked:not(:disabled)');
-
-    const isReadyToSubmit = isOptionAvailable && hasFile && selectedPrinter;
+    const isReadyToSubmit = isOptionAvailable && hasFile;
 
     if (isOptionAvailable) {
+
       const estimatedTotal = (unitRate * copies).toFixed(2);
       const formattedTotal = `₹${estimatedTotal}`;
 
