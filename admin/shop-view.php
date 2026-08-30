@@ -320,15 +320,30 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof QRCode !== 'undefined') {
-    new QRCode('adminShopQrCode', {
-      text: "<?= $customerUrl ?>",
-      width: 140,
-      height: 140
-    });
+(function() {
+  function renderAdminShopQr() {
+    const el = document.getElementById('adminShopQrCode');
+    if (typeof QRCode !== 'undefined' && el) {
+      try {
+        el.innerHTML = '';
+        new QRCode(el, {
+          text: "<?= $customerUrl ?>",
+          width: 140,
+          height: 140
+        });
+      } catch (e) {
+        console.warn('QRCode error in admin shop view', e);
+      }
+    }
   }
-});
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderAdminShopQr);
+  } else {
+    renderAdminShopQr();
+  }
+  window.addEventListener('load', renderAdminShopQr);
+})();
 </script>
+
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

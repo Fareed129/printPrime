@@ -232,7 +232,9 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="card card-pp text-center p-3">
       <h6 class="fw-bold text-dark mb-1">Customer QR Code</h6>
       <p class="small text-muted mb-2">Customers scan this QR to upload documents</p>
-      <div id="shopDashboardQr" class="d-flex justify-content-center p-2 bg-white rounded border my-1"></div>
+      <div id="shopDashboardQr" class="d-flex justify-content-center p-2 bg-white rounded border my-1" style="min-height: 140px; align-items: center;">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=<?= urlencode($customerUrl) ?>" alt="Customer QR" style="width: 130px; height: 130px; display: block;" crossorigin="anonymous">
+      </div>
       <div class="small text-muted font-monospace text-truncate my-1"><?= $customerUrl ?></div>
       <div class="d-flex gap-2 justify-content-center mt-2">
         <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard('<?= $customerUrl ?>', this)">
@@ -249,15 +251,30 @@ require_once __DIR__ . '/../includes/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  if (typeof QRCode !== 'undefined') {
-    new QRCode('shopDashboardQr', {
-      text: "<?= $customerUrl ?>",
-      width: 130,
-      height: 130
-    });
+(function() {
+  function renderDashQr() {
+    const el = document.getElementById('shopDashboardQr');
+    if (typeof QRCode !== 'undefined' && el) {
+      try {
+        el.innerHTML = '';
+        new QRCode(el, {
+          text: "<?= $customerUrl ?>",
+          width: 130,
+          height: 130
+        });
+      } catch (e) {
+        console.warn('QRCode error in dashboard', e);
+      }
+    }
   }
-});
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderDashQr);
+  } else {
+    renderDashQr();
+  }
+  window.addEventListener('load', renderDashQr);
+})();
 </script>
+
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

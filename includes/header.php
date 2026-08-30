@@ -26,7 +26,11 @@ $pageTitle = $pageTitle ?? APP_NAME . ' — Cloud Printing Solution';
 
   <!-- PrimePrint Custom Design System -->
   <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
+
+  <!-- QRCode.js Generator -->
+  <script src="<?= asset_url('assets/js/qrcode.min.js') ?>"></script>
 </head>
+
 <body>
 
   <!-- Top Navigation Bar -->
