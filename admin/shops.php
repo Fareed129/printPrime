@@ -57,11 +57,12 @@ if (!empty($statusFilter) && in_array($statusFilter, ['active', 'inactive'])) {
     $params[':status'] = $statusFilter;
 }
 
-$sql .= " ORDER BY s.created_at DESC";
+$sql .= " GROUP BY s.id ORDER BY s.created_at DESC";
 
 $stmt = $db->prepare($sql);
 $stmt->execute($params);
 $shops = $stmt->fetchAll();
+
 
 $pageTitle = 'Shops Management — ' . APP_NAME;
 require_once __DIR__ . '/../includes/header.php';
