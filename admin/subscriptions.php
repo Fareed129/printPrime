@@ -649,7 +649,15 @@ require_once __DIR__ . '/../includes/header.php';
 // Universal Modal Controller (Bootstrap 5 + Native Fallback)
 function showModalSafely(modalId) {
   const modalEl = document.getElementById(modalId);
-  if (!modalEl) return;
+  if (!modalEl) {
+    console.error('Modal element not found:', modalId);
+    return;
+  }
+
+  // Ensure modal lives at body level so backdrop never covers or traps it
+  if (modalEl.parentElement !== document.body) {
+    document.body.appendChild(modalEl);
+  }
 
   if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
     try {
@@ -657,19 +665,22 @@ function showModalSafely(modalId) {
       modal.show();
       return;
     } catch (e) {
-      console.warn('Bootstrap modal init warning:', e);
+      console.warn('Bootstrap modal warning, falling back to native show:', e);
     }
   }
 
-  // Pure Native Fallback
+  // Native Fallback
   modalEl.style.display = 'block';
   modalEl.classList.add('show');
   document.body.classList.add('modal-open');
   
-  if (!document.getElementById('modalBackdropFallback')) {
-    const backdrop = document.createElement('div');
+  let backdrop = document.getElementById('modalBackdropFallback');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
     backdrop.id = 'modalBackdropFallback';
     backdrop.className = 'modal-backdrop fade show';
+    backdrop.style.zIndex = '1040';
+    modalEl.style.zIndex = '1050';
     document.body.appendChild(backdrop);
     backdrop.addEventListener('click', () => closeModalSafely(modalId));
   }
@@ -684,7 +695,6 @@ function closeModalSafely(modalId) {
       const modal = bootstrap.Modal.getInstance(modalEl);
       if (modal) {
         modal.hide();
-        return;
       }
     } catch (e) {}
   }
@@ -694,6 +704,8 @@ function closeModalSafely(modalId) {
   document.body.classList.remove('modal-open');
   const backdrop = document.getElementById('modalBackdropFallback');
   if (backdrop) backdrop.remove();
+  const bsBackdrops = document.querySelectorAll('.modal-backdrop');
+  bsBackdrops.forEach(b => b.remove());
 }
 
 function openShopExtendModal(shopId) {

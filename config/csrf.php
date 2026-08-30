@@ -33,6 +33,14 @@ function verify_csrf_token(?string $token = null): bool {
     return hash_equals($_SESSION['csrf_token'], $token);
 }
 
+function get_csrf_token(): string {
+    return generate_csrf_token();
+}
+
+function validate_csrf_token(?string $token = null): bool {
+    return verify_csrf_token($token);
+}
+
 function require_csrf_token(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!verify_csrf_token()) {
@@ -41,3 +49,4 @@ function require_csrf_token(): void {
         }
     }
 }
+
