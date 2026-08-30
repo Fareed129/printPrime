@@ -58,7 +58,7 @@ foreach ($_SESSION['active_form_tokens'] as $tok => $ts) {
     if ($ts < $twoHoursAgo) unset($_SESSION['active_form_tokens'][$tok]);
 }
 
-// Handle Customer Order Submission
+// Fallback Standard POST Handler (in case JS is unavailable)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf_token();
 
@@ -80,12 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $sideMode  = trim($_POST['side_mode'] ?? 'single');
     $copies    = (int)($_POST['copies'] ?? 1);
 
-    // Validate Copies (Min: 1, Max: 100)
     if ($copies < 1 || $copies > 100) {
         $errors[] = 'Copies must be a valid number between 1 and 100.';
     }
 
-    // Validate Document Upload
     if (!isset($_FILES['document']) || $_FILES['document']['error'] !== UPLOAD_ERR_OK) {
         $errors[] = 'Please choose a valid document to upload.';
     } else {
@@ -97,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($fileSize <= 0) {
             $errors[] = 'Uploaded file is empty.';
         } elseif ($fileSize > MAX_FILE_SIZE_BYTES) {
-            $errors[] = 'File size exceeds the maximum limit of 25 MB.';
+            $errors[] = 'File size exceeds maximum limit of 25 MB.';
         }
 
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
@@ -110,11 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         finfo_close($finfo);
 
         if (!in_array($mimeType, ALLOWED_MIME_TYPES, true)) {
-            $errors[] = "Invalid file format ({$mimeType}). Please upload a valid document or image.";
+            $errors[] = "Invalid file format ({$mimeType}).";
         }
 
         if (empty($errors)) {
-            // Generate secure randomized storage filename
             $storedFileName = bin2hex(random_bytes(16)) . '.' . $ext;
             $destination = UPLOAD_DIR . $storedFileName;
 
@@ -123,14 +120,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (!move_uploaded_file($tmpPath, $destination)) {
-                $errors[] = 'Failed to securely store uploaded document. Please try again.';
+                $errors[] = 'Failed to securely store uploaded document.';
             } else {
-                // Server-Side Page Count Determination
                 if ($ext === 'pdf' || str_contains($mimeType, 'pdf')) {
                     $detectedPages = detect_pdf_page_count($destination);
                     if ($detectedPages === false || $detectedPages <= 0) {
                         @unlink($destination);
-                        $errors[] = 'Unable to safely determine document page count. Please ensure the PDF is not corrupted or password-protected.';
+                        $errors[] = 'Unable to determine page count. Ensure file is not password-protected.';
                     } else {
                         $serverPageCount = $detectedPages;
                     }
@@ -139,7 +135,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 if (empty($errors)) {
-                    // Server-Side Price Calculation (NO FALLBACKS)
                     $priceResult = calculate_order_price($db, $shop['id'], $paperSize, $colorMode, $sideMode, $serverPageCount, $copies);
 
                     if (!$priceResult['success']) {
@@ -151,7 +146,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         try {
                             $publicToken = generate_public_order_token($db);
 
-                            // Insert Print Job in PAYMENT_PENDING state
                             $stmt = $db->prepare("
                                 INSERT INTO print_jobs (
                                     public_token, shop_id, printer_id, file_name, stored_file_name, file_path, file_type, 
@@ -180,11 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 ':amount'           => $calculatedAmount
                             ]);
 
-                            // Mark form token as consumed to prevent double submissions
                             unset($_SESSION['active_form_tokens'][$formToken]);
                             $_SESSION['submitted_form_tokens'][$formToken] = $publicToken;
 
-                            // Redirect to dedicated Review Page using public order token
                             header("Location: " . APP_URL . "/customer/review.php?token=" . urlencode($publicToken));
                             exit;
 
@@ -222,9 +214,13 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
   <!-- Custom Modern Design System -->
   <link rel="stylesheet" href="<?= asset_url('assets/css/style.css') ?>">
   
+  <!-- Razorpay Official Checkout SDK -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
   <script>
     // Embed shop pricing rules for instant client-side calculation
     window.SHOP_PRICING_TABLE = <?= json_encode($shopPricing) ?>;
+    window.CURRENT_SHOP_SLUG = <?= json_encode($shop['slug']) ?>;
   </script>
 </head>
 <body class="customer-app-shell">
@@ -237,7 +233,7 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
         <span><?= e($shop['name']) ?></span>
       </div>
       <h1 class="fw-bold text-white mb-1 fs-4">Counter Self-Service Print</h1>
-      <p class="text-white-50 small mb-0">Upload your file, set options & collect your prints</p>
+      <p class="text-white-50 small mb-0">Upload your file, set options & pay in 1 tap</p>
     </div>
   </header>
 
@@ -245,6 +241,12 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
   <main class="customer-portal-container">
     
     <div class="customer-card">
+
+      <!-- Dynamic Interactive Alert Box -->
+      <div id="customerAlertBox" class="alert py-2 px-3 small mb-3 rounded-3 d-none align-items-center gap-2" role="alert">
+        <i class="bi bi-info-circle-fill flex-shrink-0" id="customerAlertIcon"></i>
+        <div id="customerAlertMsg"></div>
+      </div>
 
       <?php if (!empty($errors)): ?>
         <div class="alert alert-danger py-2 px-3 small mb-3 rounded-3 d-flex align-items-center gap-2" role="alert">
@@ -267,6 +269,7 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
       <form method="POST" action="<?= APP_URL ?>/p/<?= e($shop['slug']) ?>" enctype="multipart/form-data" id="customerPrintForm">
         <?= csrf_field() ?>
         <input type="hidden" name="form_token" value="<?= e($currentFormToken) ?>">
+        <input type="hidden" name="shop_slug" value="<?= e($shop['slug']) ?>">
 
         <!-- STEP 1: Upload Document -->
         <div class="mb-3">
@@ -409,8 +412,8 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
 
         <!-- Inline Submit Button (Desktop / Tablets) -->
         <div class="d-none d-sm-block mt-3">
-          <button type="submit" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" disabled>
-            <i class="bi bi-arrow-right-circle-fill me-2"></i> Review & Proceed to Payment
+          <button type="button" id="btnSubmitOrder" class="btn btn-primary btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" disabled>
+            <i class="bi bi-lightning-charge-fill me-2"></i> Pay & Print Instantly
           </button>
         </div>
 
@@ -430,11 +433,11 @@ $pageTitle = 'Print at ' . $shop['name'] . ' — ' . APP_NAME;
   <div class="sticky-mobile-bar d-sm-none">
     <div class="sticky-mobile-bar-inner">
       <div class="sticky-price-display">
-        <span class="price-label">Estimated Total</span>
+        <span class="price-label">Total Amount</span>
         <span class="price-amount" id="stickyPriceDisplay">₹0.00</span>
       </div>
       <button type="button" id="btnSubmitOrderSticky" class="btn-checkout-sticky" disabled>
-        <span>Review & Pay</span>
+        <span>⚡ Pay & Print</span>
         <i class="bi bi-arrow-right-short fs-5"></i>
       </button>
     </div>

@@ -715,9 +715,59 @@ assertTest("Phase 6: Empty shop keys seamlessly fallback to Super Admin platform
 );
 
 
+// --------------------------------------------------
+// SECTION 7: 1-Click Instant Customer Quick Checkout Flow
+// --------------------------------------------------
+echo PHP_EOL . "--- Section 7: 1-Click Instant Customer Quick Checkout ---" . PHP_EOL;
+
+// 1. Customer visits counter URL to obtain CSRF session
+$resCustHome = curlReq("{$baseUrl}/p/abc-digital-printing");
+$csrfCust = extractCsrfToken($resCustHome['body']);
+$cookieCust = $resCustHome['cookies'];
+
+// 2. Customer performs 1-Click Quick Checkout via POST /api/customer/quick-checkout.php
+$quickPost = [
+    'csrf_token' => $csrfCust,
+    'shop_slug'  => 'abc-digital-printing',
+    'paper_size' => 'A4',
+    'color_mode' => 'BW',
+    'side_mode'  => 'single',
+    'copies'     => 3,
+    'document'   => new CURLFile($test5PagePdf, 'application/pdf', 'instant-5pg.pdf')
+];
+
+$resQuick = curlReq("{$baseUrl}/api/customer/quick-checkout.php", 'POST', $quickPost, $cookieCust, [], true);
+$quickData = json_decode($resQuick['body'], true);
+
+assertTest("Phase 7: POST /api/customer/quick-checkout.php prepares order & creates Razorpay order in 1 tap", 
+    $resQuick['code'] === 200 && 
+    !empty($quickData['token']) && 
+    !empty($quickData['order_id']) && 
+    $quickData['amount'] === 3000 && // 5 pages × 3 copies @ ₹2 = ₹30 (3000 paise)
+    $quickData['page_count'] === 5 &&
+    $quickData['copies'] === 3
+);
+
+// 3. Verify Payment with signature
+$sigQuick = hash_hmac('sha256', $quickData['order_id'] . '|pay_quick_123', RAZORPAY_KEY_SECRET);
+$resVerifyQuick = curlReq("{$baseUrl}/api/payment/verify.php", 'POST', json_encode([
+    'token'               => $quickData['token'],
+    'razorpay_order_id'   => $quickData['order_id'],
+    'razorpay_payment_id' => 'pay_quick_123',
+    'razorpay_signature'  => $sigQuick
+]), null, ['Content-Type: application/json']);
+$verifyQuickData = json_decode($resVerifyQuick['body'], true);
+
+assertTest("Phase 7: Payment verification succeeds and returns direct success URL without review page", 
+    $resVerifyQuick['code'] === 200 && 
+    $verifyQuickData['success'] === true && 
+    str_contains($verifyQuickData['redirect_url'], 'customer/order-success.php')
+);
+
 echo PHP_EOL . "==================================================" . PHP_EOL;
 echo "🎉 ALL HARDENED MASTER TESTS PASSED CLEANLY!" . PHP_EOL;
 echo "==================================================" . PHP_EOL;
+
 
 
 
