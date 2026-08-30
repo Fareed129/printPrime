@@ -104,9 +104,10 @@ $pdo->exec("UPDATE shops SET razorpay_key_id = NULL, razorpay_key_secret = NULL 
 // SECTION 1: Core Authentication & Multi-Tenant Isolation
 // --------------------------------------------------
 
-// 1. Root redirect to login
+// 1. Root URL renders PrimePrint Public Marketing Website
 $res = curlReq("{$baseUrl}/");
-assertTest("1. Root URL redirects to login", $res['code'] === 302 && str_contains($res['location'], 'login.php'));
+assertTest("1. Root URL renders Public Marketing Homepage", $res['code'] === 200 && str_contains($res['body'], 'Print without') && str_contains($res['body'], 'PrimePrint'));
+
 
 // 2. Admin Login CSRF
 $res = curlReq("{$baseUrl}/login.php");
