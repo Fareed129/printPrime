@@ -305,12 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
         name: data.shop_name || 'PrimePrint',
         description: `Print Order (${data.page_count} pgs × ${data.copies} ${data.copies > 1 ? 'copies' : 'copy'})`,
         order_id: data.order_id,
-        prefill: {
-          name: 'Counter Customer',
-          email: 'customer@primeprint.local',
-          contact: '9876543210'
-        },
         theme: { color: '#2563eb' },
+
         handler: async function (response) {
           if (submitBtn) submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying Payment...';
           if (submitBtnSticky) submitBtnSticky.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying...';
