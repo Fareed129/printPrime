@@ -185,7 +185,7 @@ function Ensure-RemoteDirectory {
     }
 }
 
-# Upload a local file via FTP
+# Upload a local file via FTP (with robust retry)
 function Send-FtpFile {
     param (
         [string]$LocalFilePath,
@@ -198,18 +198,37 @@ function Send-FtpFile {
     }
     
     $targetUri = Get-FtpUri -Config $Config -RelativeRemotePath $RelativePath
-    $req = New-FtpRequest -Uri $targetUri -Config $Config -Method ([System.Net.WebRequestMethods+Ftp]::UploadFile)
-    
     $fileBytes = [System.IO.File]::ReadAllBytes($LocalFilePath)
-    $req.ContentLength = $fileBytes.Length
     
-    $reqStream = $req.GetRequestStream()
-    $reqStream.Write($fileBytes, 0, $fileBytes.Length)
-    $reqStream.Close()
-    
-    $res = $req.GetResponse()
-    $res.Close()
+    $maxRetries = 3
+    $attempt = 0
+    $uploaded = $false
+    $lastError = $null
+
+    while (-not $uploaded -and $attempt -lt $maxRetries) {
+        $attempt++
+        try {
+            $req = New-FtpRequest -Uri $targetUri -Config $Config -Method ([System.Net.WebRequestMethods+Ftp]::UploadFile)
+            $req.ContentLength = $fileBytes.Length
+            
+            $reqStream = $req.GetRequestStream()
+            $reqStream.Write($fileBytes, 0, $fileBytes.Length)
+            $reqStream.Close()
+            
+            $res = $req.GetResponse()
+            $res.Close()
+            $uploaded = $true
+        } catch {
+            $lastError = $_
+            Start-Sleep -Milliseconds 400
+        }
+    }
+
+    if (-not $uploaded) {
+        throw $lastError
+    }
 }
+
 
 # Delete a remote file via FTP
 function Remove-FtpFile {
