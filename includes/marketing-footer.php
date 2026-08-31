@@ -35,11 +35,13 @@
           <ul class="footer-links">
             <li><a href="#how-it-works">How It Works</a></li>
             <li><a href="#product">Live UI Showcase</a></li>
+            <li><a href="<?= APP_URL ?>/download.php"><i class="bi bi-windows me-1 text-primary"></i> Download Windows Agent</a></li>
             <li><a href="#architecture">Print Agent Spooler</a></li>
             <li><a href="#for-shops">For Print Shops</a></li>
             <li><a href="#faq">Frequently Asked Questions</a></li>
           </ul>
         </div>
+
 
         <!-- Portals & Access -->
         <div>

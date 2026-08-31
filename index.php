@@ -40,10 +40,14 @@ require_once __DIR__ . '/includes/marketing-header.php';
         <button type="button" class="btn-pp-blue" onclick="openContactModal()">
           <i class="bi bi-shop me-1"></i> For Printing Shops
         </button>
+        <a href="<?= APP_URL ?>/download.php" class="btn-pp-outline">
+          <i class="bi bi-windows me-1 text-primary"></i> Download Agent (.exe)
+        </a>
         <a href="#how-it-works" class="btn-pp-outline">
           <i class="bi bi-play-circle me-1"></i> See How It Works
         </a>
       </div>
+
 
       <!-- Factual Platform Metrics -->
       <div class="hero-metrics">
@@ -545,7 +549,137 @@ require_once __DIR__ . '/includes/marketing-header.php';
 </section>
 
 <!-- ========================================================= -->
-<!-- 7. BEFORE VS. AFTER COMPARISON -->
+<!-- 7. DOWNLOAD DESKTOP APPLICATION SECTION -->
+<!-- ========================================================= -->
+<section class="section-workflow bg-grid-paper" id="download" style="background-color: #EDE8DE; border-top: 1px solid var(--pp-border); border-bottom: 1px solid var(--pp-border);">
+  <div class="container-xl" style="max-width: 1240px; margin: 0 auto;">
+    
+    <div class="section-header-center mb-5">
+      <span class="section-tag">OFFICIAL WINDOWS SPOOLER CLIENT</span>
+      <h2 class="section-title">Download PrimePrint Desktop Agent</h2>
+      <p class="section-desc">
+        The lightweight Windows bridge connecting your counter printers to the cloud. Zero complex drivers or installations—download the portable .exe, enter your shop pairing token, and let customer orders print automatically.
+      </p>
+    </div>
+
+    <div class="paper-card p-4 p-md-5" style="border: 2px solid var(--pp-blue); box-shadow: var(--shadow-float); background-color: var(--pp-paper);">
+      <div class="row align-items-center g-4">
+        
+        <!-- Left Column: Specs & Download Button -->
+        <div class="col-lg-7">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <span class="badge bg-primary text-white font-mono px-3 py-2 rounded-pill" style="font-size: 0.8rem;">
+              <i class="bi bi-windows me-1"></i> WINDOWS x64
+            </span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle font-mono px-3 py-2 rounded-pill" style="font-size: 0.8rem;">
+              <i class="bi bi-check-circle-fill me-1"></i> PORTABLE (NO INSTALL NEEDED)
+            </span>
+            <span class="paper-tag font-mono">
+              <i class="bi bi-file-earmark-binary me-1"></i> 70.6 MB
+            </span>
+          </div>
+
+          <h3 class="fw-bold text-dark font-display mb-3" style="font-size: 1.85rem;">
+            PrimePrint Agent for Windows
+          </h3>
+
+          <p class="text-muted mb-4" style="font-size: 1.05rem; line-height: 1.6;">
+            Runs natively on Windows 10 & 11. Connects seamlessly with all installed USB, Wi-Fi, and Network laser/thermal printers using secure Win32 spooling APIs.
+          </p>
+
+          <!-- Primary Download Action -->
+          <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+            <a href="<?= APP_URL ?>/download.php" class="btn-pp-blue d-inline-flex align-items-center gap-3" style="font-size: 1.15rem; padding: 14px 28px;">
+              <i class="bi bi-download fs-4"></i>
+              <div class="text-start">
+                <div class="fw-bold lh-1">Download for Windows (.exe)</div>
+                <small style="font-size: 0.75rem; opacity: 0.85; font-family: var(--font-mono);">v1.0.0 · Standalone Portable · 64-bit</small>
+              </div>
+            </a>
+            
+            <a href="<?= APP_URL ?>/shop/login.php" class="btn-pp-outline">
+              <i class="bi bi-key me-1"></i> Get Shop Pairing Token
+            </a>
+          </div>
+
+          <!-- Feature Bullets -->
+          <div class="row g-2 pt-2 border-top">
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-muted">
+                <i class="bi bi-check-circle-fill text-success"></i>
+                <span>Silent Win32 Background Spooling</span>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-muted">
+                <i class="bi bi-check-circle-fill text-success"></i>
+                <span>Automatic Offline Queue Buffering</span>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-muted">
+                <i class="bi bi-check-circle-fill text-success"></i>
+                <span>Canon, HP, Epson, Brother & TVS</span>
+              </div>
+            </div>
+            <div class="col-sm-6">
+              <div class="d-flex align-items-center gap-2 small text-muted">
+                <i class="bi bi-check-circle-fill text-success"></i>
+                <span>Instant Auto-Heartbeat & Sync</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: 3-Step Setup Quick Card -->
+        <div class="col-lg-5">
+          <div class="p-4 rounded-4" style="background: #FAF8F3; border: 1px solid var(--pp-border);">
+            <h5 class="fw-bold text-dark font-display mb-3">
+              <i class="bi bi-lightning-charge text-warning me-2"></i>3-Step Counter Setup
+            </h5>
+
+            <div class="d-flex flex-column gap-3">
+              <div class="d-flex gap-3">
+                <div class="stat-icon blue" style="width: 36px; height: 36px; font-size: 0.9rem; font-weight: 700; flex-shrink: 0;">1</div>
+                <div>
+                  <strong class="text-dark d-block font-display" style="font-size: 0.95rem;">Download & Run</strong>
+                  <span class="small text-muted">Double-click <code>PrimePrint-Agent.exe</code>. No installer wizard required.</span>
+                </div>
+              </div>
+
+              <div class="d-flex gap-3">
+                <div class="stat-icon blue" style="width: 36px; height: 36px; font-size: 0.9rem; font-weight: 700; flex-shrink: 0;">2</div>
+                <div>
+                  <strong class="text-dark d-block font-display" style="font-size: 0.95rem;">Paste Pairing Token</strong>
+                  <span class="small text-muted">Copy your pairing token from <em>Shop Portal → Hardware</em>.</span>
+                </div>
+              </div>
+
+              <div class="d-flex gap-3">
+                <div class="stat-icon blue" style="width: 36px; height: 36px; font-size: 0.9rem; font-weight: 700; flex-shrink: 0;">3</div>
+                <div>
+                  <strong class="text-dark d-block font-display" style="font-size: 0.95rem;">Select Printer & Print</strong>
+                  <span class="small text-muted">Pick your counter printer. Incoming paid jobs print automatically!</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-top text-center">
+              <span class="small text-muted font-mono">
+                <i class="bi bi-shield-check text-success me-1"></i> File: PrimePrint-Agent-v1.0.0-Portable-x64.exe
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ========================================================= -->
+<!-- 8. BEFORE VS. AFTER COMPARISON -->
 <!-- ========================================================= -->
 <section class="section-comparison">
   <div class="container-xl" style="max-width: 1240px; margin: 0 auto;">
@@ -554,6 +688,7 @@ require_once __DIR__ . '/includes/marketing-header.php';
       <span class="section-tag">THE TRANSFORMATION</span>
       <h2 class="section-title">Before vs. After PrimePrint</h2>
       <p class="section-desc">See how replacing manual counter steps with automated QR routing transforms your daily shop operations.</p>
+
     </div>
 
     <div class="comparison-grid">

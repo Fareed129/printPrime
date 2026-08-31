@@ -108,6 +108,11 @@ $pdo->exec("UPDATE shops SET razorpay_key_id = NULL, razorpay_key_secret = NULL 
 $res = curlReq("{$baseUrl}/");
 assertTest("1. Root URL renders Public Marketing Homepage", $res['code'] === 200 && str_contains($res['body'], 'Print without') && str_contains($res['body'], 'PrimePrint'));
 
+// 1b. Desktop Agent Download Endpoint
+$res = curlReq("{$baseUrl}/download.php");
+assertTest("1b. Desktop Agent Download Endpoint streams binary (.exe)", $res['code'] === 200 && str_contains($res['headers'], 'attachment; filename="PrimePrint-Agent-v1.0.0-Portable-x64.exe"'));
+
+
 
 // 2. Admin Login CSRF
 $res = curlReq("{$baseUrl}/login.php");

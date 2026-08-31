@@ -64,9 +64,11 @@ $metaDescription = $metaDescription ?? 'PrimePrint helps printing shops automate
         <li><a href="#product" class="mkt-nav-link">Product</a></li>
         <li><a href="#how-it-works" class="mkt-nav-link">How It Works</a></li>
         <li><a href="#for-shops" class="mkt-nav-link">For Shops</a></li>
+        <li><a href="#download" class="mkt-nav-link"><i class="bi bi-download me-1"></i>Download App</a></li>
         <li><a href="#architecture" class="mkt-nav-link">Architecture</a></li>
         <li><a href="#faq" class="mkt-nav-link">FAQ</a></li>
       </ul>
+
 
       <!-- Action CTAs -->
       <div class="mkt-nav-actions">
