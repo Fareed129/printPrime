@@ -72,16 +72,10 @@ require_once __DIR__ . '/../includes/header.php';
     <h3 class="fw-bold text-dark mb-1">Hardware & Printers</h3>
     <p class="text-muted small mb-0">Manage physical printers synced with your PrimePrint Desktop Agent.</p>
   </div>
-  <div class="d-flex align-items-center gap-2">
-    <a href="<?= APP_URL ?>/download.php" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-2">
-      <i class="bi bi-windows"></i> Download Windows Agent (.exe)
-    </a>
-    <button class="btn btn-primary btn-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addPrinterModal">
-      <i class="bi bi-plus-circle-fill"></i> Register Printer Manually
-    </button>
-  </div>
+  <button class="btn btn-primary btn-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#addPrinterModal">
+    <i class="bi bi-plus-circle-fill"></i> Register Printer Manually
+  </button>
 </div>
-
 
 <?php if (!empty($errors)): ?>
   <div class="alert alert-danger py-2">
@@ -93,16 +87,20 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 <?php endif; ?>
 
+<?php
+$isAgentOnline = ($agent && $agent['status'] === 'online' && !empty($agent['last_seen']) && (time() - strtotime($agent['last_seen'])) <= 90);
+?>
 <!-- Print Agent Connection Status Card -->
-<div class="card card-pp mb-4 border-start border-4 border-primary">
+<div class="card card-pp mb-4 border-start border-4 <?= $isAgentOnline ? 'border-success' : 'border-secondary' ?>">
   <div class="card-body p-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
     <div class="d-flex align-items-center gap-3">
-      <div class="stat-icon blue"><i class="bi bi-hdd-network-fill"></i></div>
+      <div class="stat-icon <?= $isAgentOnline ? 'green' : 'blue' ?>"><i class="bi bi-hdd-network-fill"></i></div>
       <div>
         <h6 class="fw-bold text-dark mb-0">PrimePrint Windows Desktop Agent</h6>
         <span class="text-muted small">
           <?php if ($agent): ?>
             Agent Name: <strong><?= e($agent['agent_name']) ?></strong> • Version: <?= e($agent['version']) ?> • Last Heartbeat: <?= format_date($agent['last_seen']) ?>
+            <?= !$isAgentOnline ? '<span class="text-danger fw-semibold ms-1">(Inactive)</span>' : '<span class="text-success fw-semibold ms-1">(Active)</span>' ?>
           <?php else: ?>
             No Desktop Print Agent paired yet. Install the PrimePrint Windows Agent on your counter computer.
           <?php endif; ?>
@@ -110,13 +108,14 @@ require_once __DIR__ . '/../includes/header.php';
       </div>
     </div>
     <div>
-      <span class="badge-status <?= ($agent && $agent['status'] === 'online') ? 'online' : 'offline' ?>">
+      <span class="badge-status <?= $isAgentOnline ? 'online' : 'offline' ?>">
         <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i>
-        <?= ($agent && $agent['status'] === 'online') ? 'Agent Online' : 'Agent Disconnected' ?>
+        <?= $isAgentOnline ? 'Agent Online' : 'Agent Disconnected' ?>
       </span>
     </div>
   </div>
 </div>
+
 
 <!-- Printers Table Card -->
 <div class="card card-pp">

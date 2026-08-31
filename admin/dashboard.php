@@ -33,8 +33,9 @@ $todayJobs = (int)($jobMetrics['today_jobs'] ?? 0);
 $todayRevenue = (float)($jobMetrics['today_revenue'] ?? 0.00);
 
 // 3. Online Agents & Online Printers
-$stmt = $db->query("SELECT COUNT(*) AS total FROM print_agents WHERE status = 'online'");
+$stmt = $db->query("SELECT COUNT(*) AS total FROM print_agents WHERE status = 'online' AND last_seen >= NOW() - INTERVAL 90 SECOND");
 $onlineAgents = (int)($stmt->fetch()['total'] ?? 0);
+
 
 $stmt = $db->query("SELECT COUNT(*) AS total FROM printers WHERE status = 'online'");
 $onlinePrinters = (int)($stmt->fetch()['total'] ?? 0);

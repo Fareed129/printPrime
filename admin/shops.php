@@ -35,10 +35,11 @@ $statusFilter = trim($_GET['status'] ?? '');
 $sql = "
     SELECT s.*, 
            COUNT(DISTINCT p.id) AS total_printers,
-           COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) AS online_agents,
+           COUNT(DISTINCT CASE WHEN a.status = 'online' AND a.last_seen >= NOW() - INTERVAL 90 SECOND THEN a.id END) AS online_agents,
            COUNT(DISTINCT j.id) AS total_jobs,
            TIMESTAMPDIFF(DAY, NOW(), s.subscription_expires_at) AS days_left
     FROM shops s
+
     LEFT JOIN printers p ON s.id = p.shop_id
     LEFT JOIN print_agents a ON s.id = a.shop_id
     LEFT JOIN print_jobs j ON s.id = j.shop_id
