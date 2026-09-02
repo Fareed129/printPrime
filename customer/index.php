@@ -168,7 +168,7 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($pageTitle) ?></title>
   
   <!-- Bootstrap 5.3 CSS -->
@@ -191,38 +191,41 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       color: #1e293b;
       min-height: 100vh;
-      padding-bottom: 60px;
+      padding-bottom: 120px !important;
+      overflow-x: hidden;
     }
     .portal-container {
+      width: 100%;
       max-width: 520px;
       margin: 0 auto;
-      padding: 16px 16px 32px;
+      padding: 12px 14px 24px;
     }
     .shop-header-card {
       background: #ffffff;
-      border-radius: 18px;
-      padding: 18px 20px;
+      border-radius: 16px;
+      padding: 14px 16px;
       border: 1px solid #e2e8f0;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      margin-bottom: 14px;
     }
     .step-pill-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 16px;
-      padding: 6px 12px;
+      margin-bottom: 14px;
+      padding: 6px 10px;
       background: #ffffff;
       border-radius: 30px;
       border: 1px solid #e2e8f0;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       font-weight: 600;
     }
     .step-pill-item {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       color: #94a3b8;
+      white-space: nowrap;
     }
     .step-pill-item.active {
       color: var(--pp-primary);
@@ -232,30 +235,33 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       color: #fff;
     }
     .step-num {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       background: #e2e8f0;
       color: #64748b;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
     }
     /* Mode Selector Cards */
     .mode-card {
       border: 2px solid #e2e8f0;
       background: #ffffff;
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 14px;
+      padding: 12px 10px;
       cursor: pointer;
       transition: all 0.2s ease;
       text-align: left;
       height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 110px;
     }
     .mode-card:hover {
       border-color: #cbd5e1;
-      transform: translateY(-1px);
     }
     .mode-card.active {
       border-color: var(--pp-primary);
@@ -263,27 +269,39 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
     }
     .mode-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
       background: #f1f5f9;
       color: #334155;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.35rem;
-      margin-bottom: 10px;
+      font-size: 1.15rem;
+      margin-bottom: 6px;
     }
     .mode-card.active .mode-icon {
       background: var(--pp-primary);
       color: #ffffff;
     }
+    .mode-card .mode-title {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: #0f172a;
+      line-height: 1.25;
+      margin-bottom: 2px;
+    }
+    .mode-card .mode-desc {
+      font-size: 0.7rem;
+      color: #64748b;
+      line-height: 1.2;
+    }
     /* Upload Dropzone */
     .upload-zone {
       border: 2px dashed #cbd5e1;
       background: #ffffff;
-      border-radius: 16px;
-      padding: 28px 16px;
+      border-radius: 14px;
+      padding: 22px 14px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -297,22 +315,22 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       background: #ffffff;
       border: 1px solid #e2e8f0;
       border-radius: 12px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 8px;
     }
     .file-thumb {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 8px;
       background: #f1f5f9;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       flex-shrink: 0;
       overflow: hidden;
     }
@@ -321,21 +339,22 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       height: 100%;
       object-fit: cover;
     }
-    /* Choice Buttons (Color Mode) */
+    /* Choice Buttons (Color Mode & Payment) */
     .choice-btn-group {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 8px;
     }
     .choice-btn {
       border: 2px solid #e2e8f0;
       background: #ffffff;
       border-radius: 12px;
-      padding: 14px 12px;
+      padding: 12px 10px;
       text-align: center;
       cursor: pointer;
       font-weight: 600;
       transition: all 0.15s ease;
+      user-select: none;
     }
     .choice-btn:hover {
       border-color: #cbd5e1;
@@ -350,16 +369,16 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       display: inline-flex;
       align-items: center;
       border: 1px solid #cbd5e1;
-      border-radius: 12px;
+      border-radius: 10px;
       background: #ffffff;
       overflow: hidden;
     }
     .stepper-btn {
-      width: 44px;
-      height: 42px;
+      width: 40px;
+      height: 38px;
       background: #f8fafc;
       border: none;
-      font-size: 1.2rem;
+      font-size: 1.15rem;
       font-weight: bold;
       color: #334155;
       cursor: pointer;
@@ -372,10 +391,10 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       background: #e2e8f0;
     }
     .stepper-val {
-      width: 50px;
+      width: 44px;
       text-align: center;
       font-weight: 700;
-      font-size: 1.1rem;
+      font-size: 1rem;
       border: none;
       background: transparent;
       outline: none;
@@ -383,9 +402,9 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
     /* ID Card Upload Cards */
     .id-side-box {
       border: 2px dashed #cbd5e1;
-      border-radius: 14px;
+      border-radius: 12px;
       background: #ffffff;
-      padding: 18px 12px;
+      padding: 14px 10px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s;
@@ -396,11 +415,11 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       background: #f0fdf4;
     }
     .id-side-preview {
-      max-height: 120px;
+      max-height: 100px;
       max-width: 100%;
-      border-radius: 8px;
+      border-radius: 6px;
       object-fit: contain;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
     /* A4 Live Composite Preview */
     .a4-preview-canvas {
@@ -416,9 +435,9 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       flex-direction: column;
       align-items: center;
       justify-content: space-around;
-      padding: 18px 12px;
+      padding: 14px 10px;
       margin: 0 auto;
-      max-width: 280px;
+      max-width: 240px;
     }
     .a4-card-slot {
       width: 78%;
@@ -435,9 +454,10 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       right: 0;
       background: #ffffff;
       border-top: 1px solid #e2e8f0;
-      padding: 12px 16px;
-      z-index: 1030;
-      box-shadow: 0 -4px 16px rgba(0,0,0,0.06);
+      padding: 10px 14px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+      z-index: 1050;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
     }
     .checkout-sticky-inner {
       max-width: 520px;
@@ -445,13 +465,13 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
     }
     /* PDF Page Selector Card */
     .pdf-page-tile {
       border: 2px solid #e2e8f0;
       border-radius: 8px;
-      padding: 6px;
+      padding: 4px;
       text-align: center;
       cursor: pointer;
       position: relative;
@@ -462,19 +482,19 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       border-color: var(--pp-primary);
       background: #eff6ff;
     }
-    .pdf-page-tile .check-badge {
+    .check-badge {
       position: absolute;
       top: 4px;
       right: 4px;
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       background: var(--pp-primary);
       color: #fff;
       display: none;
       align-items: center;
       justify-content: center;
-      font-size: 0.7rem;
+      font-size: 0.68rem;
     }
     .pdf-page-tile.selected .check-badge {
       display: flex;
@@ -547,8 +567,8 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
               <div class="mode-icon">
                 <i class="bi bi-file-earmark-text"></i>
               </div>
-              <div class="fw-bold text-dark fs-6 mb-1">Documents & Photos</div>
-              <div class="text-muted" style="font-size: 0.76rem;">PDF, JPG, or PNG files</div>
+              <div class="mode-title">Documents & Photos</div>
+              <div class="mode-desc">PDF, JPG, or PNG files</div>
             </div>
           </div>
 
@@ -558,8 +578,8 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
               <div class="mode-icon">
                 <i class="bi bi-person-vcard"></i>
               </div>
-              <div class="fw-bold text-dark fs-6 mb-1">ID Card / Aadhaar</div>
-              <div class="text-muted" style="font-size: 0.76rem;">Front & back on one A4 page</div>
+              <div class="mode-title">ID Card / Aadhaar</div>
+              <div class="mode-desc">Front & back on 1 A4 page</div>
             </div>
           </div>
 
@@ -726,18 +746,18 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
       </div>
 
       <!-- Spacing for fixed checkout bar -->
-      <div style="height: 70px;"></div>
+      <div style="height: 110px;"></div>
 
       <!-- ============================================== -->
       <!-- STICKY BOTTOM CHECKOUT ACTION BAR              -->
       <!-- ============================================== -->
       <div class="checkout-sticky-footer">
         <div class="checkout-sticky-inner">
-          <div>
-            <div class="small text-muted" id="pricePagesSummary">0 pages • 1 copy</div>
+          <div class="text-truncate me-2" style="min-width: 90px;">
+            <div class="small text-muted text-truncate" id="pricePagesSummary">0 pgs • 1 copy</div>
             <div class="fs-4 fw-bold text-dark font-heading" id="totalPriceDisplay">₹0.00</div>
           </div>
-          <button type="submit" id="btnMainSubmit" class="btn btn-primary btn-lg fw-bold px-4 py-2 rounded-3 shadow" disabled>
+          <button type="submit" id="btnMainSubmit" class="btn btn-primary fw-bold px-3 py-2 rounded-3 shadow flex-shrink-0" style="font-size: 0.95rem; min-height: 44px;" disabled>
             <span id="submitBtnSpinner" class="spinner-border spinner-border-sm me-2" style="display:none;"></span>
             <span id="submitBtnText">Select files to print</span>
           </button>
@@ -810,7 +830,7 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.9/pdf-lib.min.js"></script>
+  <script src="<?= asset_url('assets/js/pdf-lib.min.js') ?>"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
   <script>
@@ -1250,21 +1270,36 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
 
         // Append files for Regular Mode
         if (currentMode === 'regular') {
-          // If customer selected specific pages on a single PDF, extract them using pdf-lib in browser
+          // If customer selected specific pages on a single PDF
           if (selectedFiles.length === 1 && selectedFiles[0].isPdf && selectedFiles[0].selectedPages.length < selectedFiles[0].totalPages) {
-            btnText.textContent = 'Extracting selected pages...';
+            btnText.textContent = 'Preparing selected pages...';
             const fObj = selectedFiles[0];
-            const sourceBytes = await fObj.file.arrayBuffer();
-            const srcDoc = await PDFLib.PDFDocument.load(sourceBytes);
-            const subDoc = await PDFLib.PDFDocument.create();
-            const pageIndices = fObj.selectedPages.map(p => p - 1);
-            const copiedPages = await subDoc.copyPages(srcDoc, pageIndices);
-            copiedPages.forEach(p => subDoc.addPage(p));
-            const subBytes = await subDoc.save();
-            const extractedBlob = new Blob([subBytes], { type: 'application/pdf' });
-            formData.delete('documents[]');
-            formData.append('documents[]', extractedBlob, fObj.name);
-            formData.set('selected_pages', fObj.selectedPages.join(','));
+            let extracted = false;
+
+            if (typeof PDFLib !== 'undefined' && PDFLib.PDFDocument) {
+              try {
+                const sourceBytes = await fObj.file.arrayBuffer();
+                const srcDoc = await PDFLib.PDFDocument.load(sourceBytes);
+                const subDoc = await PDFLib.PDFDocument.create();
+                const pageIndices = fObj.selectedPages.map(p => p - 1);
+                const copiedPages = await subDoc.copyPages(srcDoc, pageIndices);
+                copiedPages.forEach(p => subDoc.addPage(p));
+                const subBytes = await subDoc.save();
+                const extractedBlob = new Blob([subBytes], { type: 'application/pdf' });
+                formData.delete('documents[]');
+                formData.append('documents[]', extractedBlob, fObj.name);
+                formData.set('selected_pages', fObj.selectedPages.join(','));
+                extracted = true;
+              } catch (exErr) {
+                console.warn('Client extraction error, passing to server:', exErr);
+              }
+            }
+
+            if (!extracted) {
+              formData.delete('documents[]');
+              formData.append('documents[]', fObj.file);
+              formData.set('selected_pages', fObj.selectedPages.join(','));
+            }
           } else {
             formData.delete('documents[]');
             selectedFiles.forEach(f => {

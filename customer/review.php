@@ -75,7 +75,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title><?= e($pageTitle) ?></title>
   
   <!-- Bootstrap 5.3 CSS -->
