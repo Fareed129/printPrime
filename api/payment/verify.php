@@ -22,10 +22,10 @@ if (!is_array($inputData)) {
     $inputData = $_POST;
 }
 
-$token      = trim($inputData['token'] ?? '');
-$paymentId  = trim($inputData['razorpay_payment_id'] ?? '');
-$orderId    = trim($inputData['razorpay_order_id'] ?? '');
-$signature  = trim($inputData['razorpay_signature'] ?? '');
+$token      = trim($inputData['token'] ?? $inputData['order_token'] ?? '');
+$paymentId  = trim($inputData['razorpay_payment_id'] ?? $inputData['payment_id'] ?? '');
+$orderId    = trim($inputData['razorpay_order_id'] ?? $inputData['order_id'] ?? '');
+$signature  = trim($inputData['razorpay_signature'] ?? $inputData['signature'] ?? '');
 
 if (empty($token) || empty($paymentId) || empty($orderId) || empty($signature)) {
     http_response_code(400);

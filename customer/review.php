@@ -276,6 +276,7 @@ $pageTitle = 'Review Order #' . $job['public_token'] . ' — ' . e($job['shop_na
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                token: orderToken,
                 order_token: orderToken,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,

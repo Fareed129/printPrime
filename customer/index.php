@@ -1375,6 +1375,7 @@ $pageTitle = 'Print at ' . e($shop['name']) . ' — ' . APP_NAME;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            token: token,
             order_token: token,
             razorpay_order_id: rzpResponse.razorpay_order_id,
             razorpay_payment_id: rzpResponse.razorpay_payment_id,
