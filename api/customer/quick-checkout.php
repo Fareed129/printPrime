@@ -501,12 +501,12 @@ try {
         http_response_code(502);
         echo json_encode([
             'success' => false,
-            'error'   => 'Payment gateway initialization failed. Please contact the counter staff.'
+            'error'   => $rzpOrder['error'] ?? 'Payment gateway initialization failed. Please contact the counter staff.'
         ]);
         exit;
     }
 
-    $activeKeyId = !empty($customShopKeyId) ? $customShopKeyId : RAZORPAY_KEY_ID;
+    $activeKeyId = !empty($rzpOrder['active_key_id']) ? $rzpOrder['active_key_id'] : RAZORPAY_KEY_ID;
 
     // Record in payments table
     $stmt = $db->prepare("

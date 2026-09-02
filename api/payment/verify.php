@@ -53,15 +53,23 @@ try {
         exit;
     }
 
-    // 2. Cryptographic Signature Verification (Per-Shop Secret or Platform Default)
-    $activeKeySecret = !empty($job['shop_razorpay_key_secret']) ? trim($job['shop_razorpay_key_secret']) : RAZORPAY_KEY_SECRET;
-    $isValidSignature = razorpay_verify_payment_signature($orderId, $paymentId, $signature, $activeKeySecret);
+    // 2. Cryptographic Signature Verification (Per-Shop Secret with Platform Fallback)
+    $shopSecret = !empty($job['shop_razorpay_key_secret']) ? trim($job['shop_razorpay_key_secret']) : null;
+    $isValidSignature = false;
+
+    if ($shopSecret) {
+        $isValidSignature = razorpay_verify_payment_signature($orderId, $paymentId, $signature, $shopSecret);
+    }
+    if (!$isValidSignature) {
+        $isValidSignature = razorpay_verify_payment_signature($orderId, $paymentId, $signature, RAZORPAY_KEY_SECRET);
+    }
+
     if (!$isValidSignature) {
         log_payment_event('client_payment_signature_failed', [
             'public_token' => $token,
             'order_id'     => $orderId,
             'payment_id'   => $paymentId,
-            'is_shop_custom_gateway' => !empty($job['shop_razorpay_key_secret'])
+            'has_shop_secret' => !empty($shopSecret)
         ], 'WARNING');
 
         http_response_code(400);

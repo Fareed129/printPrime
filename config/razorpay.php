@@ -31,29 +31,9 @@ function log_payment_event(string $event, array $data = [], string $level = 'INF
 }
 
 /**
- * Create an Order on Razorpay
- *
- * @param int $amountPaise Amount in paise (e.g. ₹48.00 = 4800 paise)
- * @param string $receipt Internal receipt identifier
- * @param array $notes Optional key-value notes
- * @param string|null $customKeyId Optional shop-specific Key ID
- * @param string|null $customKeySecret Optional shop-specific Key Secret
- * @return array Result array with order_id and success status
+ * Low-level cURL call to Razorpay Orders API
  */
-function razorpay_create_order(int $amountPaise, string $receipt, array $notes = [], ?string $customKeyId = null, ?string $customKeySecret = null): array {
-    $keyId = !empty($customKeyId) ? $customKeyId : RAZORPAY_KEY_ID;
-    $keySecret = !empty($customKeySecret) ? $customKeySecret : RAZORPAY_KEY_SECRET;
-
-    if (empty($keyId) || empty($keySecret) || str_contains($keyId, 'sampleKey')) {
-        log_payment_event('razorpay_credentials_missing', [
-            'key_id_set' => !empty($keyId)
-        ], 'ERROR');
-        return [
-            'success' => false,
-            'error'   => 'Razorpay API credentials are not configured or invalid.'
-        ];
-    }
-
+function _execute_razorpay_order_call(int $amountPaise, string $receipt, array $notes, string $keyId, string $keySecret): array {
     $payload = [
         'amount'   => $amountPaise,
         'currency' => 'INR',
@@ -107,9 +87,63 @@ function razorpay_create_order(int $amountPaise, string $receipt, array $notes =
     ], 'ERROR');
 
     return [
-        'success' => false,
-        'error'   => $errorMsg
+        'success'   => false,
+        'http_code' => $httpCode,
+        'error'     => $errorMsg
     ];
+}
+
+/**
+ * Create an Order on Razorpay
+ *
+ * @param int $amountPaise Amount in paise (e.g. ₹48.00 = 4800 paise)
+ * @param string $receipt Internal receipt identifier
+ * @param array $notes Optional key-value notes
+ * @param string|null $customKeyId Optional shop-specific Key ID
+ * @param string|null $customKeySecret Optional shop-specific Key Secret
+ * @return array Result array with order_id and success status
+ */
+function razorpay_create_order(int $amountPaise, string $receipt, array $notes = [], ?string $customKeyId = null, ?string $customKeySecret = null): array {
+    // Only attempt shop-specific gateway if BOTH Key ID AND Key Secret are non-empty
+    $hasCustomKeys = (!empty($customKeyId) && !empty($customKeySecret) && trim($customKeyId) !== '' && trim($customKeySecret) !== '');
+
+    if ($hasCustomKeys) {
+        $cKeyId = trim($customKeyId);
+        $cKeySecret = trim($customKeySecret);
+        $res = _execute_razorpay_order_call($amountPaise, $receipt, $notes, $cKeyId, $cKeySecret);
+
+        if ($res['success']) {
+            $res['active_key_id'] = $cKeyId;
+            return $res;
+        }
+
+        // If shop's custom keys failed (e.g. 401 Authentication failed), log and fallback to platform credentials
+        log_payment_event('razorpay_shop_keys_failed_fallback_platform', [
+            'shop_key_id' => $cKeyId,
+            'error'       => $res['error'] ?? 'Authentication failed',
+            'receipt'     => $receipt
+        ], 'WARNING');
+    }
+
+    // Fallback to platform default credentials
+    $keyId = defined('RAZORPAY_KEY_ID') ? RAZORPAY_KEY_ID : '';
+    $keySecret = defined('RAZORPAY_KEY_SECRET') ? RAZORPAY_KEY_SECRET : '';
+
+    if (empty($keyId) || empty($keySecret) || str_contains($keyId, 'sampleKey')) {
+        log_payment_event('razorpay_credentials_missing', [
+            'key_id_set' => !empty($keyId)
+        ], 'ERROR');
+        return [
+            'success' => false,
+            'error'   => 'Razorpay API credentials are not configured or invalid.'
+        ];
+    }
+
+    $res = _execute_razorpay_order_call($amountPaise, $receipt, $notes, $keyId, $keySecret);
+    if ($res['success']) {
+        $res['active_key_id'] = $keyId;
+    }
+    return $res;
 }
 
 /**

@@ -117,15 +117,14 @@ try {
     ) {
         $razorpayOrderId = $existingPayment['razorpay_order_id'];
     } else {
-        // Determine active gateway credentials (Shop's Own or Platform Default)
-        $activeKeyId = !empty($job['shop_razorpay_key_id']) ? trim($job['shop_razorpay_key_id']) : RAZORPAY_KEY_ID;
-        $activeKeySecret = !empty($job['shop_razorpay_key_secret']) ? trim($job['shop_razorpay_key_secret']) : RAZORPAY_KEY_SECRET;
+        $customShopKeyId = !empty($job['shop_razorpay_key_id']) ? trim($job['shop_razorpay_key_id']) : null;
+        $customShopKeySecret = !empty($job['shop_razorpay_key_secret']) ? trim($job['shop_razorpay_key_secret']) : null;
 
         // Create new Razorpay order
         $orderRes = razorpay_create_order($amountPaise, 'PP_' . $job['id'], [
             'public_token' => $job['public_token'],
             'shop_id'      => (string)$job['shop_id']
-        ], $activeKeyId, $activeKeySecret);
+        ], $customShopKeyId, $customShopKeySecret);
 
         if (!$orderRes['success'] || empty($orderRes['order_id'])) {
             http_response_code(502);
@@ -133,6 +132,7 @@ try {
             exit;
         }
 
+        $activeKeyId = !empty($orderRes['active_key_id']) ? $orderRes['active_key_id'] : RAZORPAY_KEY_ID;
         $razorpayOrderId = $orderRes['order_id'];
 
         // Record/Update Payment in Database
