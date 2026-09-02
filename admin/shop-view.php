@@ -35,23 +35,6 @@ $stmt = $db->prepare("SELECT * FROM users WHERE shop_id = :shop_id AND role = 's
 $stmt->execute([':shop_id' => $shopId]);
 $shopUser = $stmt->fetch();
 
-// 2b. Handle Admin Quick Password Reset for Shop
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'reset_password') {
-    require_csrf_token();
-    $newPass = trim($_POST['new_password'] ?? '');
-    if (strlen($newPass) < 6) {
-        flash_set('danger', 'Password must be at least 6 characters long.');
-    } else {
-        $hash = password_hash($newPass, PASSWORD_BCRYPT);
-        $stmt = $db->prepare("UPDATE users SET password_hash = :hash WHERE shop_id = :shop_id AND role = 'shop'");
-        $stmt->execute([':hash' => $hash, ':shop_id' => $shopId]);
-        flash_set('success', "Login password for {$shop['name']} has been reset successfully.");
-    }
-    header("Location: " . APP_URL . "/admin/shop-view.php?id=" . $shopId);
-    exit;
-}
-
-
 // 3. Fetch Metrics for this shop
 $stmt = $db->prepare("
     SELECT 
@@ -182,17 +165,11 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <?php if ($shopUser): ?>
           <hr class="my-2">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <span class="text-muted small d-block">Shop Login Account:</span>
-              <span class="badge bg-light text-dark border"><i class="bi bi-person me-1"></i><?= e($shopUser['email']) ?></span>
-            </div>
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#resetShopPasswordModal">
-              <i class="bi bi-key me-1"></i>Reset Password
-            </button>
+          <div>
+            <span class="text-muted small d-block">Shop Login Account:</span>
+            <span class="badge bg-light text-dark border"><i class="bi bi-person me-1"></i><?= e($shopUser['email']) ?></span>
           </div>
         <?php endif; ?>
-
       </div>
     </div>
 
@@ -369,32 +346,4 @@ require_once __DIR__ . '/../includes/header.php';
 </script>
 
 
-<!-- Reset Shop Password Modal -->
-<div class="modal fade" id="resetShopPasswordModal" tabindex="-1" aria-labelledby="resetShopPasswordModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header">
-        <h5 class="modal-title fw-bold" id="resetShopPasswordModalLabel"><i class="bi bi-key text-primary me-2"></i>Reset Shop Password</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="POST" action="<?= APP_URL ?>/admin/shop-view.php?id=<?= $shopId ?>">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="reset_password">
-        <div class="modal-body p-4">
-          <p class="text-muted small mb-3">Set a new login password for <strong><?= e($shop['name']) ?></strong> (Account: <code><?= e($shopUser['email'] ?? $shop['email']) ?></code>).</p>
-          <div class="mb-3">
-            <label class="form-label fw-semibold text-secondary small">New Password</label>
-            <input type="password" class="form-control" name="new_password" placeholder="Minimum 6 characters" required minlength="6">
-          </div>
-        </div>
-        <div class="modal-footer bg-light py-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary btn-sm px-3">Update Password</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
-

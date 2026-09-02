@@ -45,26 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $razorpayKeyId     = trim($_POST['razorpay_key_id'] ?? '');
     $razorpayKeySecret = trim($_POST['razorpay_key_secret'] ?? '');
-    $newPassword       = $_POST['new_password'] ?? '';
 
     if (empty($shopName))  $errors[] = 'Shop name is required.';
     if (empty($ownerName)) $errors[] = 'Owner name is required.';
     if (empty($phone))     $errors[] = 'Phone number is required.';
     if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Valid email is required.';
-    }
-
-    if (!empty($newPassword) && strlen($newPassword) < 6) {
-        $errors[] = 'New password must be at least 6 characters.';
-    }
-
-    // Check if new email is taken by a different user not belonging to this shop
-    if (empty($errors)) {
-        $checkStmt = $db->prepare("SELECT id FROM users WHERE LOWER(email) = LOWER(:email) AND (shop_id IS NULL OR shop_id != :shop_id) LIMIT 1");
-        $checkStmt->execute([':email' => $email, ':shop_id' => $shopId]);
-        if ($checkStmt->fetch()) {
-            $errors[] = 'This email address is already in use by another user account.';
-        }
     }
 
     if (empty($errors)) {
@@ -98,34 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':id'         => $shopId
             ]);
 
-            // Synchronize Shop Manager User Account (email, name, and optional password)
-            if (!empty($newPassword)) {
-                $hash = password_hash($newPassword, PASSWORD_BCRYPT);
-                $userStmt = $db->prepare("
-                    UPDATE users 
-                    SET email = :email, name = :name, password_hash = :hash 
-                    WHERE shop_id = :shop_id AND role = 'shop'
-                ");
-                $userStmt->execute([
-                    ':email'   => $email,
-                    ':name'    => $ownerName,
-                    ':hash'    => $hash,
-                    ':shop_id' => $shopId
-                ]);
-            } else {
-                $userStmt = $db->prepare("
-                    UPDATE users 
-                    SET email = :email, name = :name 
-                    WHERE shop_id = :shop_id AND role = 'shop'
-                ");
-                $userStmt->execute([
-                    ':email'   => $email,
-                    ':name'    => $ownerName,
-                    ':shop_id' => $shopId
-                ]);
-            }
 
-            flash_set('success', "Shop '{$shopName}' details and login credentials updated successfully.");
+            flash_set('success', "Shop '{$shopName}' details updated successfully.");
             header("Location: " . APP_URL . "/admin/shop-view.php?id=" . $shopId);
             exit;
 
@@ -228,23 +188,10 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
       </div>
 
-      <hr class="my-4">
-      <h6 class="fw-bold text-dark mb-1"><i class="bi bi-shield-lock text-primary me-2"></i>Shop Manager Login Credentials</h6>
-      <p class="small text-muted mb-3">Reset the login password for this shop manager account. Leave blank to retain current password.</p>
-
-      <div class="row g-3 mb-4">
-        <div class="col-md-6">
-          <label class="form-label fw-semibold text-secondary small">Set New Password</label>
-          <input type="password" class="form-control" name="new_password" placeholder="Leave blank to keep unchanged">
-          <div class="form-text small">Minimum 6 characters. The shop email above is used as the login username.</div>
-        </div>
-      </div>
-
       <div class="d-flex gap-2">
         <button type="submit" class="btn btn-primary px-4 fw-semibold">Save Changes</button>
         <a href="<?= APP_URL ?>/admin/shop-view.php?id=<?= $shopId ?>" class="btn btn-outline-secondary">Cancel</a>
       </div>
-
 
 
     </form>

@@ -243,9 +243,23 @@ function generate_public_order_token(PDO $db): string {
 
 /**
  * Recalculate price server-side strictly using shop active pricing rules
- * IMPORTANT: If pricing tier is not configured by the shop, return an error. NEVER fallback to invented default rates.
+ * Enforces A4 paper size and single-sided printing only. Rejects A3.
  */
 function calculate_order_price(PDO $db, int $shopId, string $paperSize, string $colorMode, string $sideMode, int $pageCount, int $copies): array {
+    // Strictly reject A3 paper size
+    $normSize = strtoupper(trim($paperSize));
+    if ($normSize === 'A3') {
+        return [
+            'success' => false,
+            'error'   => 'A3 printing is not supported. Please choose A4.'
+        ];
+    }
+
+    // Force A4 and single-sided only
+    $paperSize = 'A4';
+    $sideMode  = 'single';
+    $colorMode = strtoupper(trim($colorMode)) === 'COLOR' ? 'COLOR' : 'BW';
+
     $pageCount = max(1, $pageCount);
     $copies = max(1, min(100, $copies));
 
@@ -272,7 +286,7 @@ function calculate_order_price(PDO $db, int $shopId, string $paperSize, string $
     if (!$pricing) {
         return [
             'success' => false,
-            'error'   => 'This printing option is currently unavailable.'
+            'error'   => 'This printing option is currently unavailable for this shop.'
         ];
     }
 
@@ -287,3 +301,150 @@ function calculate_order_price(PDO $db, int $shopId, string $paperSize, string $
         'total_amount' => $totalAmount
     ];
 }
+
+/**
+ * Validate and clean user-selected PDF pages against actual document page count.
+ * Returns sorted, unique, 1-indexed valid page numbers.
+ */
+function validate_selected_pdf_pages(int $totalPdfPages, array|string $requestedPages): array {
+    if ($totalPdfPages <= 0) {
+        return [];
+    }
+
+    $rawPages = is_array($requestedPages) ? $requestedPages : explode(',', (string)$requestedPages);
+    $validPages = [];
+
+    foreach ($rawPages as $p) {
+        $pageNum = (int)trim((string)$p);
+        if ($pageNum >= 1 && $pageNum <= $totalPdfPages) {
+            $validPages[] = $pageNum;
+        }
+    }
+
+    $validPages = array_values(array_unique($validPages));
+    sort($validPages, SORT_NUMERIC);
+
+    // If no specific pages validly selected, default to all pages
+    if (empty($validPages)) {
+        return range(1, $totalPdfPages);
+    }
+
+    return $validPages;
+}
+
+/**
+ * Compose front and back cropped ID card images into a clean, print-ready A4 PDF document.
+ * Front card is centered in upper half; back card is centered in lower half.
+ *
+ * @param string $frontImgPath Path to front cropped image
+ * @param string $backImgPath Path to back cropped image
+ * @param string $outputPath Path where composed PDF should be written
+ * @return bool True on success, false on error
+ */
+function generate_id_card_a4_pdf(string $frontImgPath, string $backImgPath, string $outputPath): bool {
+    if (!file_exists($frontImgPath) || !file_exists($backImgPath)) {
+        return false;
+    }
+
+    $frontInfo = @getimagesize($frontImgPath);
+    $backInfo = @getimagesize($backImgPath);
+    if (!$frontInfo || !$backInfo) {
+        return false;
+    }
+
+    require_once __DIR__ . '/../includes/libraries/fpdf/fpdf.php';
+
+    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf->SetMargins(10, 10, 10);
+    $pdf->SetAutoPageBreak(false);
+    $pdf->AddPage();
+
+    $pageW = 210.0;
+    $pageH = 297.0;
+
+    // Slot 1: Front side (upper half: max dimensions ~125mm x 85mm)
+    $maxW = 125.0;
+    $maxH = 85.0;
+
+    // Front image placement
+    $fRatio = $frontInfo[0] / max(1, $frontInfo[1]);
+    $fW = $maxW;
+    $fH = $fW / $fRatio;
+    if ($fH > $maxH) {
+        $fH = $maxH;
+        $fW = $fH * $fRatio;
+    }
+    $fX = ($pageW - $fW) / 2.0;
+    $fY = 35.0 + ($maxH - $fH) / 2.0;
+    $pdf->Image($frontImgPath, $fX, $fY, $fW, $fH);
+
+    // Slot 2: Back side (lower half: max dimensions ~125mm x 85mm)
+    $bRatio = $backInfo[0] / max(1, $backInfo[1]);
+    $bW = $maxW;
+    $bH = $bW / $bRatio;
+    if ($bH > $maxH) {
+        $bH = $maxH;
+        $bW = $bH * $bRatio;
+    }
+    $bX = ($pageW - $bW) / 2.0;
+    $bY = 155.0 + ($maxH - $bH) / 2.0;
+    $pdf->Image($backImgPath, $bX, $bY, $bW, $bH);
+
+    $pdf->Output('F', $outputPath);
+    return file_exists($outputPath) && filesize($outputPath) > 0;
+}
+
+/**
+ * Compile multiple image files into a single print-ready A4 PDF document.
+ * Each image is scaled to fit comfortably on its own A4 page.
+ *
+ * @param array $imagePaths Array of absolute paths to images
+ * @param string $outputPath Path where composed PDF should be written
+ * @return bool True on success, false on error
+ */
+function compile_images_to_a4_pdf(array $imagePaths, string $outputPath): bool {
+    if (empty($imagePaths)) {
+        return false;
+    }
+
+    require_once __DIR__ . '/../includes/libraries/fpdf/fpdf.php';
+
+    $pdf = new FPDF('P', 'mm', 'A4');
+    $pdf->SetMargins(10, 10, 10);
+    $pdf->SetAutoPageBreak(false);
+
+    $pageW = 210.0;
+    $pageH = 297.0;
+    $margin = 10.0;
+    $maxW = $pageW - (2 * $margin);
+    $maxH = $pageH - (2 * $margin);
+
+    $validPagesCount = 0;
+    foreach ($imagePaths as $imgPath) {
+        if (!file_exists($imgPath)) continue;
+        $info = @getimagesize($imgPath);
+        if (!$info) continue;
+
+        $pdf->AddPage();
+        $ratio = $info[0] / max(1, $info[1]);
+        $w = $maxW;
+        $h = $w / $ratio;
+        if ($h > $maxH) {
+            $h = $maxH;
+            $w = $h * $ratio;
+        }
+        $x = ($pageW - $w) / 2.0;
+        $y = ($pageH - $h) / 2.0;
+
+        $pdf->Image($imgPath, $x, $y, $w, $h);
+        $validPagesCount++;
+    }
+
+    if ($validPagesCount === 0) {
+        return false;
+    }
+
+    $pdf->Output('F', $outputPath);
+    return file_exists($outputPath) && filesize($outputPath) > 0;
+}
+

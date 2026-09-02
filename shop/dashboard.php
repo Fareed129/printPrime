@@ -59,6 +59,16 @@ $recentJobs = $stmt->fetchAll();
 
 $customerUrl = APP_URL . "/p/" . $shop['slug'];
 $pageTitle = 'Shop Dashboard — ' . $shop['name'];
+
+// Check for pending cash approvals
+$stmtPendingCash = $db->prepare("
+    SELECT * FROM print_jobs 
+    WHERE shop_id = :shop_id AND status = 'AWAITING_SHOP_APPROVAL'
+    ORDER BY created_at ASC
+");
+$stmtPendingCash->execute([':shop_id' => $shopId]);
+$pendingCashJobs = $stmtPendingCash->fetchAll();
+
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -77,7 +87,23 @@ require_once __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
+<?php if (!empty($pendingCashJobs)): ?>
+  <div class="alert alert-warning border-warning shadow-sm d-flex flex-wrap align-items-center justify-content-between p-3 mb-4 rounded-3 gap-3">
+    <div class="d-flex align-items-center gap-3">
+      <i class="bi bi-cash-stack fs-1 text-warning flex-shrink-0"></i>
+      <div>
+        <h6 class="fw-bold text-dark mb-1"><?= count($pendingCashJobs) ?> Cash Payment Request(s) Waiting at Counter</h6>
+        <div class="text-muted small">Customers are waiting to pay cash. Click below to accept payments and begin printing.</div>
+      </div>
+    </div>
+    <a href="<?= APP_URL ?>/shop/print-jobs.php?status=AWAITING_SHOP_APPROVAL" class="btn btn-warning text-dark fw-bold px-3 py-2 shadow-sm">
+      <i class="bi bi-check-circle-fill me-1"></i> Review & Accept Cash (<?= count($pendingCashJobs) ?>)
+    </a>
+  </div>
+<?php endif; ?>
+
 <?php require_once __DIR__ . '/../includes/subscription-banner.php'; ?>
+
 
 <!-- Shop KPI Grid -->
 
