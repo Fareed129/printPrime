@@ -35,14 +35,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db = getDBConnection();
             $stmt = $db->prepare("
-                SELECT u.*, s.status AS shop_status 
+                SELECT u.*, s.status AS shop_status, s.email AS shop_email 
                 FROM users u 
                 LEFT JOIN shops s ON u.shop_id = s.id 
-                WHERE u.email = :email 
+                WHERE (LOWER(TRIM(u.email)) = LOWER(TRIM(:email_u)) OR (u.role = 'shop' AND LOWER(TRIM(s.email)) = LOWER(TRIM(:email_s))))
+                ORDER BY (LOWER(TRIM(u.email)) = LOWER(TRIM(:email_ord))) DESC
                 LIMIT 1
             ");
-            $stmt->execute([':email' => $email]);
+            $stmt->execute([
+                ':email_u'   => $email,
+                ':email_s'   => $email,
+                ':email_ord' => $email
+            ]);
             $user = $stmt->fetch();
+
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 if ($user['status'] !== 'active') {
@@ -50,6 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } elseif ($user['role'] === 'shop' && $user['shop_status'] !== 'active') {
                     $errors[] = 'Your printing shop is currently deactivated. Please contact support.';
                 } else {
+                    // Auto-heal: If shop user logged in using the updated shop email, sync users.email immediately
+                    if (!empty($user['shop_id']) && strtolower(trim($user['email'])) !== strtolower(trim($email))) {
+                        $syncStmt = $db->prepare("UPDATE users SET email = :email WHERE id = :id");
+                        $syncStmt->execute([':email' => $email, ':id' => $user['id']]);
+                        $user['email'] = $email;
+                    }
+
                     login_user($user);
                     flash_set('success', "Welcome back, {$user['name']}!");
                     

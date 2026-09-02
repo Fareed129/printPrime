@@ -69,8 +69,9 @@ function Test-IsDeployableFile {
     
     # 2. Strict Inclusion Allowlist
     if ($cleanPath -match '^(admin/|api/|assets/|config/|customer/|database/|includes/|shop/)') { return $true }
-    if ($cleanPath -in @('.htaccess', 'health.php', 'index.php', 'login.php', 'logout.php', 'p.php', 'DEPLOYMENT.md', 'PRODUCTION_CHECKLIST.md', 'DEPLOY_LOCAL.md')) { return $true }
+    if ($cleanPath -in @('.htaccess', 'health.php', 'index.php', 'login.php', 'logout.php', 'p.php', 'download.php', 'DEPLOYMENT.md', 'PRODUCTION_CHECKLIST.md', 'DEPLOY_LOCAL.md')) { return $true }
     if ($cleanPath -in @('uploads/.htaccess', 'uploads/index.php', 'logs/.htaccess', 'logs/index.php')) { return $true }
+
     
     return $false
 }

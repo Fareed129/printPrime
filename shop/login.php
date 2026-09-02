@@ -39,14 +39,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db = getDBConnection();
             $stmt = $db->prepare("
-                SELECT u.*, s.name AS shop_name, s.status AS shop_status 
+                SELECT u.*, s.name AS shop_name, s.status AS shop_status, s.email AS shop_email 
                 FROM users u 
                 INNER JOIN shops s ON u.shop_id = s.id 
-                WHERE u.email = :email AND u.role = 'shop' 
+                WHERE (LOWER(TRIM(u.email)) = LOWER(TRIM(:email_u)) OR LOWER(TRIM(s.email)) = LOWER(TRIM(:email_s))) 
+                  AND u.role = 'shop' 
+                ORDER BY (LOWER(TRIM(u.email)) = LOWER(TRIM(:email_ord))) DESC
                 LIMIT 1
             ");
-            $stmt->execute([':email' => $email]);
+            $stmt->execute([
+                ':email_u'   => $email,
+                ':email_s'   => $email,
+                ':email_ord' => $email
+            ]);
             $user = $stmt->fetch();
+
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 if ($user['status'] !== 'active') {
@@ -54,6 +61,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } elseif ($user['shop_status'] !== 'active') {
                     $errors[] = 'This printing shop is currently deactivated. Please contact support.';
                 } else {
+                    // Auto-heal: If user logged in using the updated shop email, sync users.email immediately
+                    if (strtolower(trim($user['email'])) !== strtolower(trim($email))) {
+                        $syncStmt = $db->prepare("UPDATE users SET email = :email WHERE id = :id");
+                        $syncStmt->execute([':email' => $email, ':id' => $user['id']]);
+                        $user['email'] = $email;
+                    }
+
                     login_user($user);
                     flash_set('success', "Welcome to {$user['shop_name']} Dashboard!");
                     header("Location: " . APP_URL . "/shop/dashboard.php");

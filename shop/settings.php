@@ -53,6 +53,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($errors)) {
+        // Check if new email is already registered by another account
+        $checkStmt = $db->prepare("SELECT id FROM users WHERE LOWER(email) = LOWER(:email) AND id != :id LIMIT 1");
+        $checkStmt->execute([':email' => $email, ':id' => $shopUser['id']]);
+        if ($checkStmt->fetch()) {
+            $errors[] = 'This email address is already in use by another user account.';
+        }
+    }
+
+    if (empty($errors)) {
         try {
             // Update Shop Info & Razorpay Keys
             $stmt = $db->prepare("
@@ -75,12 +84,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':id'          => $shopId
             ]);
 
-            // Update Password if provided
+            // Synchronize User Account (email, name, and optional new password)
             if (!empty($newPassword)) {
                 $hash = password_hash($newPassword, PASSWORD_BCRYPT);
-                $stmt = $db->prepare("UPDATE users SET password_hash = :hash WHERE id = :id");
-                $stmt->execute([':hash' => $hash, ':id' => $shopUser['id']]);
+                $stmt = $db->prepare("UPDATE users SET email = :email, name = :name, password_hash = :hash WHERE id = :id");
+                $stmt->execute([':email' => $email, ':name' => $ownerName, ':hash' => $hash, ':id' => $shopUser['id']]);
+            } else {
+                $stmt = $db->prepare("UPDATE users SET email = :email, name = :name WHERE id = :id");
+                $stmt->execute([':email' => $email, ':name' => $ownerName, ':id' => $shopUser['id']]);
             }
+
+            // Sync current session so user doesn't get logged out or desynced
+            $_SESSION['user']['email'] = $email;
+            $_SESSION['user']['name'] = $ownerName;
 
             flash_set('success', 'Shop profile and payment gateway settings updated successfully.');
             header("Location: " . APP_URL . "/shop/settings.php");
@@ -142,9 +158,11 @@ require_once __DIR__ . '/../includes/header.php';
           </div>
 
           <div class="mb-3">
-            <label class="form-label fw-semibold text-secondary">Public Email Address <span class="text-danger">*</span></label>
+            <label class="form-label fw-semibold text-secondary">Email Address (Login & Contact) <span class="text-danger">*</span></label>
             <input type="email" class="form-control" name="email" value="<?= e($_POST['email'] ?? $shop['email']) ?>" required>
+            <div class="form-text small text-muted">This email is used as your login email to access this Shop Portal and for customer receipts.</div>
           </div>
+
 
           <div class="mb-4">
             <label class="form-label fw-semibold text-secondary">Physical Address</label>
